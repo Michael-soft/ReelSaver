@@ -13,7 +13,13 @@ class Base(DeclarativeBase):
     pass
 
 
-app = Flask(__name__)
+FRONTEND_DIST = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'web', 'dist'))
+
+app = Flask(
+    __name__,
+    static_folder=FRONTEND_DIST,
+    static_url_path='',
+)
 app.secret_key = os.environ.get("SESSION_SECRET")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 

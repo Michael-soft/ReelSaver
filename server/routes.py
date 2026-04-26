@@ -10,9 +10,9 @@ from flask_login import current_user
 
 from app import app, db, DOWNLOADS_DIR
 from models import Download, Setting, Template
-from replit_auth import make_replit_blueprint, require_login
+from auth import register_auth, require_login
 
-app.register_blueprint(make_replit_blueprint(), url_prefix="/auth")
+register_auth(app)
 
 download_progress = {}
 download_lock = threading.Lock()
@@ -23,15 +23,18 @@ def make_session_permanent():
     session.permanent = True
 
 
+
 @app.route('/api/me', methods=['GET'])
 def get_me():
     if current_user.is_authenticated:
         return jsonify({
             'id': current_user.id,
+            'username': current_user.username,
             'email': current_user.email,
             'first_name': current_user.first_name,
             'last_name': current_user.last_name,
             'profile_image_url': current_user.profile_image_url,
+            'auth_provider': current_user.auth_provider,
         })
     return jsonify(None)
 
@@ -579,3 +582,22 @@ def run_command():
 @require_login
 def serve_file(filename):
     return send_from_directory(DOWNLOADS_DIR, filename)
+
+
+@app.route('/')
+def serve_index():
+    index_path = os.path.join(app.static_folder, 'index.html')
+    if not os.path.exists(index_path):
+        return jsonify({'error': 'Frontend not built. Run `npm run build` in web/.'}), 503
+    return send_from_directory(app.static_folder, 'index.html')
+
+
+@app.errorhandler(404)
+def spa_fallback(_e):
+    path = request.path.lstrip('/')
+    if path.startswith('api/') or path.startswith('auth/'):
+        return jsonify({'error': 'Not found'}), 404
+    index_path = os.path.join(app.static_folder, 'index.html')
+    if not os.path.exists(index_path):
+        return jsonify({'error': 'Frontend not built'}), 503
+    return send_from_directory(app.static_folder, 'index.html')

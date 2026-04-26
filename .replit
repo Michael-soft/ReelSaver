@@ -56,5 +56,5 @@ externalPort = 8000
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["bash", "-c", "python main.py & cd web && npm run build && npx serve dist -l 5000"]
+run = ["gunicorn", "--bind=0.0.0.0:5000", "--workers=2", "--timeout=120", "main:app"]
 build = ["bash", "-c", "cd web && npm install && npm run build"]
