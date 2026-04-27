@@ -1,26 +1,28 @@
-# Seal - Web Video & Audio Downloader
+# ReelSaver - Web Video & Audio Downloader
 
 ## Overview
 
-A full-stack web application that replicates the Seal Android app's core features. Users can download video and audio from YouTube, Twitter, Instagram, and 1000+ platforms powered by **yt-dlp**. Authentication is provided via Replit Auth (OpenID Connect).
+A full-stack web application that lets users download video and audio from YouTube, Twitter, Instagram, and 1000+ platforms powered by **yt-dlp**. Authentication uses local username/password (werkzeug hashed) plus Google OAuth (Flask-Dance).
 
 ## Architecture
 
 - **Frontend**: React + Vite + TypeScript, running on port 5000
 - **Backend**: Python Flask API, running on port 8000 (via `main.py`)
-- **Database**: PostgreSQL (via DATABASE_URL env var) using SQLAlchemy ORM
-- **Auth**: Replit Auth (OpenID Connect) via Flask-Dance + Flask-Login
+- **Database**: Supabase PostgreSQL (via `SUPABASE_DATABASE_URL`, Session pooler) using SQLAlchemy ORM
+- **Auth**: Local username/password + Google OAuth (Flask-Dance + Flask-Login)
 - **Downloader**: yt-dlp (Python package) for actual media downloading
 - **Downloads stored**: `downloads/` directory
 
 ## Key Features
 
-1. **Auth** — Replit Auth login/logout with user avatar/name in nav; landing page for logged-out users
+1. **Auth** — Register/login with username + password OR "Continue with Google"; landing page for logged-out users
 2. **Download page** — Paste URL, fetch video info, select format/quality, download
 3. **Playlist page** — Fetch playlist items, select specific videos, bulk download
-4. **History page** — Searchable download history with filtering, bulk delete
-5. **Command page** — Custom yt-dlp flags, save/load command templates
-6. **Settings page** — Proxy, rate limit, concurrent downloads, embed options
+4. **Watermark remover** — Dedicated page that downloads short-form video (TikTok/IG/X/FB/Snap) without the platform's burned-in overlay (`noWatermark` flag → yt-dlp extractor args)
+5. **History page** — Searchable download history with filtering, bulk delete
+6. **Command page** — Custom yt-dlp flags, save/load command templates
+7. **Settings page** — Proxy, rate limit, concurrent downloads, embed options
+8. **Mobile responsive** — Sidebar collapses into a slide-in drawer with hamburger toggle below 900px
 
 ## Project Structure
 
@@ -36,9 +38,9 @@ web/                    # React + Vite frontend
   vite.config.ts        # Vite config with Tailwind + proxy to backend (/api + /auth)
 
 server/
-  app.py                # Flask app factory: DB, CORS, ProxyFix, SQLAlchemy setup
-  models.py             # SQLAlchemy models: User, OAuth, Download, Setting, Template
-  replit_auth.py        # Replit Auth blueprint, login/logout, require_login decorator
+  app.py                # Flask app factory: DB (Supabase), CORS, ProxyFix, SQLAlchemy setup
+  models.py             # SQLAlchemy models: User, Download, Setting, Template
+  auth.py               # Auth blueprint: register/login/logout + Google OAuth
   routes.py             # All API routes (/api/me, /api/info, /api/download, etc.)
 
 main.py                 # Entry point: imports server/app.py + server/routes.py, runs Flask
@@ -59,32 +61,39 @@ downloads/              # Where downloaded files are saved
 - `GET/POST/DELETE /api/templates` — Command templates (auth required)
 - `POST /api/command` — Run custom yt-dlp command (auth required)
 - `GET /api/files/:filename` — Serve downloaded files (auth required)
-- `GET /auth/login` — Start Replit Auth login flow
-- `GET /auth/logout` — Logout + redirect to Replit OIDC end_session
+- `POST /auth/register` — Create account (username, email, password)
+- `POST /auth/login` — Username/password login
+- `POST /auth/logout` — Logout
+- `GET /auth/google` — Start Google OAuth flow
+- `GET /auth/google/authorized` — Google OAuth callback
 
 ## Auth Flow
 
-1. Unauthenticated users see a landing page with "Log in to continue" button
-2. Clicking the button goes to `/auth/login` → Replit OIDC → callback
-3. After login, user is saved/upserted in PostgreSQL `users` table
-4. `current_user` is available via Flask-Login; all `/api/*` routes use `@require_login`
-5. Nav bar shows user avatar, name, and a "Log out" link
+1. Unauthenticated users see the landing page with login/register form + "Continue with Google" button.
+2. Local auth: `POST /auth/register` or `POST /auth/login` returns the user JSON and sets the session cookie.
+3. Google OAuth: `/auth/google` → Google consent → `/auth/google/authorized` → user is upserted by `google_id` and signed in.
+4. `current_user` is available via Flask-Login; all `/api/*` routes use `@require_login`.
+5. Nav bar shows username and a "Log out" button.
 
 ## Workflows
 
 - **Start application**: `cd web && npm run dev` (port 5000, webview)
 - **Backend API**: `python main.py` (port 8000, console)
 
-## Environment Variables
+## Environment Variables / Secrets
 
-- `DATABASE_URL` — PostgreSQL connection string (auto-provisioned)
-- `SESSION_SECRET` — Flask session secret (auto-provisioned)
-- `REPL_ID` — Replit Repl ID (auto-injected by Replit, used as OIDC client_id)
+- `SUPABASE_DATABASE_URL` — Supabase Session pooler PostgreSQL connection string
+- `SESSION_SECRET` — Flask session secret
+- `GOOGLE_OAUTH_CLIENT_ID` — Google OAuth client ID
+- `GOOGLE_OAUTH_CLIENT_SECRET` — Google OAuth client secret
+- `GITHUB_TOKEN` — Used for pushing code to https://github.com/Michael-soft/ReelSaver via REST API
 
-## Android Repository
+## Google OAuth Setup
 
-The original Seal Android app source code is also in this repo:
-- `app/` — Android Kotlin source code
-- `buildSrc/` — Gradle build logic
-- `color/` — Dynamic color library module
-- Java GraalVM 22.3 is installed for Gradle builds
+The OAuth callback URL is `/auth/google/authorized`. Whitelist these in your Google Cloud Console under "Authorized redirect URIs":
+- `https://<your-replit-dev-domain>/auth/google/authorized` (development)
+- `https://<your-deployment-domain>/auth/google/authorized` (production)
+
+## GitHub Repository
+
+Source is mirrored to https://github.com/Michael-soft/ReelSaver (main branch). Pushes are made via the GitHub REST API using `GITHUB_TOKEN` because destructive git operations are blocked locally.

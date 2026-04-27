@@ -1,5 +1,6 @@
-import { NavLink } from 'react-router-dom'
-import { Download, History, Settings, Terminal, ListVideo, LogOut } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { NavLink, useLocation } from 'react-router-dom'
+import { Download, History, Settings, Terminal, ListVideo, LogOut, Menu, X, Eraser } from 'lucide-react'
 import type { User } from '../App'
 
 interface LayoutProps {
@@ -10,26 +11,62 @@ interface LayoutProps {
 export function Layout({ children, user }: LayoutProps) {
   const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ')
   const displayName = fullName || user.username || user.email || 'User'
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const location = useLocation()
+
+  useEffect(() => {
+    setMobileOpen(false)
+  }, [location.pathname])
+
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [mobileOpen])
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
+    <div className="app-shell">
+      {/* Mobile top bar */}
+      <header className="mobile-topbar">
+        <button
+          type="button"
+          aria-label="Open menu"
+          onClick={() => setMobileOpen(true)}
+          className="icon-btn"
+        >
+          <Menu size={20} />
+        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div style={{
+            width: '28px', height: '28px',
+            background: 'linear-gradient(135deg, #7c3aed, #a78bfa)',
+            borderRadius: '8px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Download size={15} color="white" />
+          </div>
+          <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text)' }}>ReelSaver</span>
+        </div>
+        <div style={{ width: 40 }} />
+      </header>
+
+      {/* Backdrop for mobile drawer */}
+      {mobileOpen && (
+        <div
+          className="sidebar-backdrop"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden
+        />
+      )}
+
       {/* Sidebar */}
-      <aside style={{
-        width: '220px',
-        flexShrink: 0,
-        background: 'var(--surface)',
-        borderRight: '1px solid var(--border)',
-        display: 'flex',
-        flexDirection: 'column',
-        padding: '1.25rem 0.75rem',
-        gap: '0.25rem',
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        height: '100vh',
-        overflowY: 'auto',
-      }}>
-        <div style={{ padding: '0.25rem 0.875rem 1.25rem', marginBottom: '0.5rem' }}>
+      <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0.25rem 0.875rem 1.25rem',
+          marginBottom: '0.5rem',
+        }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
             <div style={{
               width: '34px', height: '34px',
@@ -40,10 +77,18 @@ export function Layout({ children, user }: LayoutProps) {
               <Download size={18} color="white" />
             </div>
             <div>
-              <div style={{ fontWeight: 700, fontSize: '1.0625rem', color: 'var(--text)' }}>Seal</div>
+              <div style={{ fontWeight: 700, fontSize: '1.0625rem', color: 'var(--text)' }}>ReelSaver</div>
               <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: '-2px' }}>Media Downloader</div>
             </div>
           </div>
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={() => setMobileOpen(false)}
+            className="icon-btn sidebar-close"
+          >
+            <X size={18} />
+          </button>
         </div>
 
         <NavLink to="/app" end className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
@@ -53,6 +98,10 @@ export function Layout({ children, user }: LayoutProps) {
         <NavLink to="/app/playlist" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <ListVideo size={17} />
           Playlist
+        </NavLink>
+        <NavLink to="/app/watermark" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+          <Eraser size={17} />
+          Remove Watermark
         </NavLink>
         <NavLink to="/app/history" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <History size={17} />
@@ -99,7 +148,7 @@ export function Layout({ children, user }: LayoutProps) {
                 {displayName.charAt(0).toUpperCase()}
               </div>
             )}
-            <div style={{ overflow: 'hidden' }}>
+            <div style={{ overflow: 'hidden', flex: 1 }}>
               <div style={{
                 fontSize: '0.8125rem',
                 fontWeight: 600,
@@ -125,25 +174,7 @@ export function Layout({ children, user }: LayoutProps) {
           </div>
           <a
             href="/auth/logout"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.5rem 0.875rem',
-              borderRadius: '8px',
-              color: 'var(--muted)',
-              textDecoration: 'none',
-              fontSize: '0.875rem',
-              transition: 'background 0.15s, color 0.15s',
-            }}
-            onMouseEnter={e => {
-              (e.currentTarget as HTMLElement).style.background = 'var(--border)'
-              ;(e.currentTarget as HTMLElement).style.color = 'var(--text)'
-            }}
-            onMouseLeave={e => {
-              (e.currentTarget as HTMLElement).style.background = ''
-              ;(e.currentTarget as HTMLElement).style.color = 'var(--muted)'
-            }}
+            className="logout-link"
           >
             <LogOut size={16} />
             Log out
@@ -152,14 +183,7 @@ export function Layout({ children, user }: LayoutProps) {
       </aside>
 
       {/* Main content */}
-      <main style={{
-        marginLeft: '220px',
-        flex: 1,
-        minHeight: '100vh',
-        background: 'var(--bg)',
-        padding: '2rem',
-        maxWidth: 'calc(100vw - 220px)',
-      }}>
+      <main className="app-main">
         {children}
       </main>
     </div>

@@ -6,6 +6,7 @@ import { PlaylistPage } from './pages/PlaylistPage'
 import { HistoryPage } from './pages/HistoryPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { CommandPage } from './pages/CommandPage'
+import { WatermarkPage } from './pages/WatermarkPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
 import { PrivacyPage } from './pages/PrivacyPage'
@@ -72,6 +73,7 @@ export default function App() {
             {/* Authenticated app — sidebar layout */}
             <Route path="/app" element={<Layout user={user}><DownloadPage /></Layout>} />
             <Route path="/app/playlist" element={<Layout user={user}><PlaylistPage /></Layout>} />
+            <Route path="/app/watermark" element={<Layout user={user}><WatermarkPage /></Layout>} />
             <Route path="/app/history" element={<Layout user={user}><HistoryPage /></Layout>} />
             <Route path="/app/command" element={<Layout user={user}><CommandPage /></Layout>} />
             <Route path="/app/settings" element={<Layout user={user}><SettingsPage /></Layout>} />

@@ -39,7 +39,15 @@ export function PublicNav({ isAuthenticated = false }: PublicNavProps) {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
         {isAuthenticated ? (
-          <Link to="/" className="btn-primary" style={{ textDecoration: 'none' }}>
+          <Link to="/app" style={{
+            padding: '0.55rem 1.1rem',
+            background: 'linear-gradient(135deg, #7c3aed, #a78bfa)',
+            color: 'white',
+            textDecoration: 'none',
+            fontSize: '0.9375rem',
+            fontWeight: 600,
+            borderRadius: '10px',
+          }}>
             Open dashboard
           </Link>
         ) : (

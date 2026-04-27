@@ -173,8 +173,15 @@ def run_download(task_id, url, options):
             embed_subtitle = options.get('embedSubtitle', False)
             embed_metadata = options.get('embedMetadata', True)
             sponsor_block = options.get('sponsorBlock', False)
+            no_watermark = options.get('noWatermark', False)
 
             args = build_yt_dlp_args(options.get('settings', {}))
+
+            if no_watermark:
+                args += [
+                    '--extractor-args', 'tiktok:api_hostname=api16-normal-c-useast1a.tiktokv.com',
+                    '--format-sort', 'hasaud,res,br',
+                ]
 
             output_template = os.path.join(DOWNLOADS_DIR, '%(title)s.%(ext)s')
             args += ['--output', output_template, '--no-playlist', '--progress', '--newline']

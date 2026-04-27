@@ -127,6 +127,7 @@ export const api = {
     embedSubtitle?: boolean;
     embedMetadata?: boolean;
     sponsorBlock?: boolean;
+    noWatermark?: boolean;
   }) =>
     apiFetch<{ taskId: string; status: string }>('/download', {
       method: 'POST',

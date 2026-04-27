@@ -71,7 +71,7 @@ export function HomePage({ isAuthenticated = false }: HomePageProps) {
             flexWrap: 'wrap',
           }}>
             {isAuthenticated ? (
-              <Link to="/" style={primaryBtnStyle}>
+              <Link to="/app" style={primaryBtnStyle}>
                 Open dashboard <ArrowRight size={17} />
               </Link>
             ) : (
@@ -182,7 +182,7 @@ export function HomePage({ isAuthenticated = false }: HomePageProps) {
             Sign up in under a minute. It's free.
           </p>
           {isAuthenticated ? (
-            <Link to="/" style={primaryBtnStyle}>
+            <Link to="/app" style={primaryBtnStyle}>
               Open dashboard <ArrowRight size={17} />
             </Link>
           ) : (
