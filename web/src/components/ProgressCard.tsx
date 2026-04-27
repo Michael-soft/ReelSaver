@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CheckCircle, XCircle, Download, ExternalLink } from 'lucide-react'
+import { CheckCircle, XCircle, Download, ExternalLink, X } from 'lucide-react'
 import type { DownloadProgress } from '../api/client'
 import { api } from '../api/client'
 
@@ -9,18 +9,23 @@ interface Props {
   onComplete?: () => void
 }
 
+interface ProgressState extends DownloadProgress {
+  error?: string
+}
+
 export function ProgressCard({ taskId, title, onComplete }: Props) {
-  const [progress, setProgress] = useState<DownloadProgress>({
+  const [progress, setProgress] = useState<ProgressState>({
     status: 'downloading',
     percent: 0,
     speed: '',
     eta: '',
     filename: '',
   })
+  const [cancelling, setCancelling] = useState(false)
 
   useEffect(() => {
     const unsub = api.subscribeProgress(taskId, (data) => {
-      setProgress(data)
+      setProgress(data as ProgressState)
       if (data.status === 'completed' && onComplete) {
         onComplete()
       }
@@ -30,6 +35,16 @@ export function ProgressCard({ taskId, title, onComplete }: Props) {
 
   const isDone = progress.status === 'completed'
   const isFailed = progress.status === 'failed'
+  const isRunning = progress.status === 'downloading'
+
+  async function handleCancel() {
+    if (cancelling) return
+    setCancelling(true)
+    try {
+      await api.cancelDownload(taskId)
+    } catch (_) {}
+    setCancelling(false)
+  }
 
   return (
     <div className="card fade-in" style={{ borderColor: isDone ? 'rgba(52, 211, 153, 0.3)' : isFailed ? 'rgba(248, 113, 113, 0.3)' : 'var(--border)' }}>
@@ -48,13 +63,33 @@ export function ProgressCard({ taskId, title, onComplete }: Props) {
           }}>
             {title}
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '1px' }}>
+          <div style={{ fontSize: '0.75rem', color: isFailed ? 'var(--error)' : 'var(--muted)', marginTop: '1px' }}>
             {isDone ? 'Download complete' :
-             isFailed ? 'Download failed' :
+             isFailed ? (progress.error || 'Download failed') :
              progress.speed ? `${progress.speed} • ETA ${progress.eta}` :
              'Starting...'}
           </div>
         </div>
+        {isRunning && (
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={cancelling}
+            title="Cancel download"
+            style={{
+              background: 'transparent',
+              border: '1px solid var(--border)',
+              color: 'var(--muted)',
+              borderRadius: '8px',
+              padding: '0.35rem 0.6rem',
+              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: '0.25rem',
+              fontSize: '0.75rem',
+            }}
+          >
+            <X size={13} /> {cancelling ? '...' : 'Cancel'}
+          </button>
+        )}
         {isDone && progress.filename && (
           <a
             href={api.getFileUrl(progress.filename)}

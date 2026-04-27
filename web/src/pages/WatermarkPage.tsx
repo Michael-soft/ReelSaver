@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Eraser, Download, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Eraser, Download, Loader2, AlertCircle, CheckCircle2, X } from 'lucide-react'
 import { api, formatFileSize } from '../api/client'
 import type { DownloadProgress } from '../api/client'
 
@@ -33,7 +33,7 @@ export function WatermarkPage() {
     const closers: Array<() => void> = []
     items.forEach(item => {
       if (item.status !== 'downloading' && item.status !== 'pending') return
-      const close = api.subscribeProgress(item.taskId, (data: DownloadProgress) => {
+      const close = api.subscribeProgress(item.taskId, (data: DownloadProgress & { error?: string }) => {
         setItems(prev => prev.map(it => it.taskId === item.taskId ? {
           ...it,
           status: (data.status as ActiveDownload['status']) || it.status,
@@ -41,6 +41,7 @@ export function WatermarkPage() {
           speed: data.speed ?? it.speed,
           eta: data.eta ?? it.eta,
           filename: data.filename || it.filename,
+          error: data.error || it.error,
         } : it))
       })
       closers.push(close)
@@ -48,6 +49,12 @@ export function WatermarkPage() {
     return () => closers.forEach(c => c())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items.map(i => i.taskId).join(',')])
+
+  async function cancel(taskId: string) {
+    try {
+      await api.cancelDownload(taskId)
+    } catch (_) {}
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -218,6 +225,16 @@ export function WatermarkPage() {
                       {item.status === 'pending' && 'Queued...'}
                     </div>
                   </div>
+                  {item.status === 'downloading' && (
+                    <button
+                      type="button"
+                      onClick={() => cancel(item.taskId)}
+                      className="btn-secondary"
+                      style={{ fontSize: '0.8125rem' }}
+                    >
+                      <X size={13} /> Cancel
+                    </button>
+                  )}
                   {item.status === 'completed' && item.filename && (
                     <a
                       href={api.getFileUrl(item.filename.split('/').pop() || '')}

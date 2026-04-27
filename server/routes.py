@@ -1,8 +1,11 @@
 import json
+import logging
 import os
 import re
+import signal
 import subprocess
 import threading
+import time
 import uuid
 
 from flask import jsonify, request, Response, send_from_directory, session
@@ -14,8 +17,16 @@ from auth import register_auth, require_login
 
 register_auth(app)
 
+log = logging.getLogger(__name__)
+
 download_progress = {}
 download_lock = threading.Lock()
+download_processes = {}  # task_id -> subprocess.Popen
+
+# Kill the download if no output is received for this many seconds.
+STALL_TIMEOUT = 180
+# Hard cap on how long any single download can run.
+MAX_DOWNLOAD_SECONDS = 30 * 60
 
 
 @app.before_request
@@ -55,7 +66,13 @@ def set_setting(key, value):
 
 
 def build_yt_dlp_args(settings=None):
-    args = ['yt-dlp']
+    args = [
+        'yt-dlp',
+        '--socket-timeout', '30',
+        '--retries', '3',
+        '--fragment-retries', '3',
+        '--no-warnings',
+    ]
     if not settings:
         settings = {}
     proxy = settings.get('proxy', get_setting('proxy', ''))
@@ -161,8 +178,22 @@ def get_playlist():
         return jsonify({'error': str(e)}), 500
 
 
+def _kill_process(proc):
+    try:
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+    except Exception:
+        pass
+
+
 def run_download(task_id, url, options):
     with app.app_context():
+        process = None
+        last_lines = []  # rolling buffer of recent output for error reporting
         try:
             media_type = options.get('mediaType', 'video')
             quality = options.get('quality', 'best')
@@ -195,15 +226,15 @@ def run_download(task_id, url, options):
                 args += ['--audio-quality', q]
             else:
                 quality_map = {
-                    'best': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-                    '4k': 'bestvideo[height<=2160][ext=mp4]+bestaudio[ext=m4a]/best[height<=2160]',
-                    '1440p': 'bestvideo[height<=1440][ext=mp4]+bestaudio[ext=m4a]/best[height<=1440]',
-                    '1080p': 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]',
-                    '720p': 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]',
-                    '480p': 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]',
-                    '360p': 'bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]/best[height<=360]',
+                    'best': 'bestvideo*[ext=mp4]+bestaudio[ext=m4a]/bestvideo*+bestaudio/best',
+                    '4k': 'bestvideo[height<=2160]+bestaudio/best[height<=2160]',
+                    '1440p': 'bestvideo[height<=1440]+bestaudio/best[height<=1440]',
+                    '1080p': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
+                    '720p': 'bestvideo[height<=720]+bestaudio/best[height<=720]',
+                    '480p': 'bestvideo[height<=480]+bestaudio/best[height<=480]',
+                    '360p': 'bestvideo[height<=360]+bestaudio/best[height<=360]',
                 }
-                fmt = quality_map.get(quality, 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best')
+                fmt = quality_map.get(quality, 'bestvideo*+bestaudio/best')
                 if video_format == 'mkv':
                     args += ['--remux-video', 'mkv']
                 args += ['--format', fmt]
@@ -228,16 +259,52 @@ def run_download(task_id, url, options):
                     'filename': '',
                 }
 
+            log.info('Starting download %s url=%s', task_id, url)
             process = subprocess.Popen(
                 args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, bufsize=1
+                text=True, bufsize=1,
+                start_new_session=True,
             )
+            with download_lock:
+                download_processes[task_id] = process
+
+            # Watchdog: kill if no output for STALL_TIMEOUT seconds, or
+            # if total runtime exceeds MAX_DOWNLOAD_SECONDS.
+            started_at = time.time()
+            last_output_at = [time.time()]
+            stall_reason = ['']
+            stop_watchdog = threading.Event()
+
+            def watchdog():
+                while not stop_watchdog.wait(5):
+                    now = time.time()
+                    if now - last_output_at[0] > STALL_TIMEOUT:
+                        stall_reason[0] = (
+                            f'No progress for {STALL_TIMEOUT}s — the source likely '
+                            f'requires login or is blocked. Try uploading a cookies '
+                            f'file in Settings.'
+                        )
+                        _kill_process(process)
+                        return
+                    if now - started_at > MAX_DOWNLOAD_SECONDS:
+                        stall_reason[0] = (
+                            f'Download exceeded the {MAX_DOWNLOAD_SECONDS // 60}-minute limit.'
+                        )
+                        _kill_process(process)
+                        return
+
+            wd_thread = threading.Thread(target=watchdog, daemon=True)
+            wd_thread.start()
 
             filename = ''
             for line in process.stdout:
                 line = line.strip()
                 if not line:
                     continue
+                last_output_at[0] = time.time()
+                last_lines.append(line)
+                if len(last_lines) > 30:
+                    last_lines.pop(0)
 
                 percent_match = re.search(r'\[download\]\s+([\d.]+)%', line)
                 speed_match = re.search(r'at\s+([\d.]+\s*\w+/s)', line)
@@ -264,9 +331,13 @@ def run_download(task_id, url, options):
                     download_progress[task_id] = prog
 
             process.wait()
+            stop_watchdog.set()
+
+            with download_lock:
+                download_processes.pop(task_id, None)
 
             dl = db.session.get(Download, task_id)
-            if process.returncode == 0:
+            if process.returncode == 0 and not stall_reason[0]:
                 fsize = os.path.getsize(filename) if filename and os.path.exists(filename) else None
                 fname = os.path.basename(filename) if filename else None
                 ext = fname.rsplit('.', 1)[-1] if fname and '.' in fname else ''
@@ -279,22 +350,41 @@ def run_download(task_id, url, options):
                 with download_lock:
                     download_progress[task_id]['status'] = 'completed'
                     download_progress[task_id]['percent'] = 100
+                log.info('Download %s completed: %s', task_id, fname)
             else:
+                err = stall_reason[0] or _extract_error(last_lines) or 'Download failed'
                 if dl:
                     dl.status = 'failed'
-                    dl.error = 'Download failed'
+                    dl.error = err[:500]
                     db.session.commit()
                 with download_lock:
                     download_progress[task_id]['status'] = 'failed'
+                    download_progress[task_id]['error'] = err
+                log.warning('Download %s failed: %s', task_id, err)
         except Exception as e:
+            log.exception('Download %s crashed', task_id)
+            err = stall_reason[0] if 'stall_reason' in locals() and stall_reason[0] else str(e)
             dl = db.session.get(Download, task_id)
             if dl:
                 dl.status = 'failed'
-                dl.error = str(e)
+                dl.error = err[:500]
                 db.session.commit()
             with download_lock:
                 if task_id in download_progress:
                     download_progress[task_id]['status'] = 'failed'
+                    download_progress[task_id]['error'] = err
+                download_processes.pop(task_id, None)
+        finally:
+            if process is not None:
+                _kill_process(process)
+
+
+def _extract_error(lines):
+    """Pull the most useful-looking error message out of yt-dlp output."""
+    for ln in reversed(lines):
+        if 'ERROR:' in ln or 'error:' in ln.lower():
+            return ln.split('ERROR:', 1)[-1].strip() or ln
+    return lines[-1] if lines else ''
 
 
 @app.route('/api/download', methods=['POST'])
@@ -331,6 +421,64 @@ def start_download():
     return jsonify({'taskId': task_id, 'status': 'started'})
 
 
+@app.route('/api/download/<task_id>/cancel', methods=['POST'])
+@require_login
+def cancel_download(task_id):
+    """Stop a running download and mark it failed."""
+    with download_lock:
+        proc = download_processes.get(task_id)
+    if proc is not None:
+        _kill_process(proc)
+    dl = db.session.get(Download, task_id)
+    if dl and dl.status == 'downloading':
+        dl.status = 'failed'
+        dl.error = 'Cancelled by user'
+        db.session.commit()
+    with download_lock:
+        if task_id in download_progress:
+            download_progress[task_id]['status'] = 'failed'
+            download_progress[task_id]['error'] = 'Cancelled by user'
+        download_processes.pop(task_id, None)
+    return jsonify({'success': True})
+
+
+@app.route('/api/downloads/cleanup', methods=['POST'])
+@require_login
+def cleanup_stuck_downloads():
+    """Mark any download still in 'downloading' state as failed.
+    Useful after a server restart when in-memory state is lost."""
+    rows = db.session.query(Download).filter(Download.status == 'downloading').all()
+    n = 0
+    for dl in rows:
+        with download_lock:
+            still_running = dl.id in download_processes
+        if not still_running:
+            dl.status = 'failed'
+            dl.error = 'Interrupted (server restarted or download stalled)'
+            n += 1
+    if n:
+        db.session.commit()
+    return jsonify({'cleaned': n})
+
+
+def _recover_stuck_on_startup():
+    """On server boot, mark any leftover 'downloading' rows as failed."""
+    try:
+        with app.app_context():
+            rows = db.session.query(Download).filter(Download.status == 'downloading').all()
+            for dl in rows:
+                dl.status = 'failed'
+                dl.error = 'Interrupted (server restarted)'
+            if rows:
+                db.session.commit()
+                log.info('Recovered %d stuck download(s) on startup', len(rows))
+    except Exception:
+        log.exception('Stuck-download recovery failed')
+
+
+_recover_stuck_on_startup()
+
+
 @app.route('/api/progress/<task_id>', methods=['GET'])
 @require_login
 def get_progress(task_id):
@@ -347,7 +495,7 @@ def get_progress(task_id):
                 with app.app_context():
                     dl = db.session.get(Download, task_id)
                 if dl:
-                    yield f"data: {json.dumps({'status': dl.status, 'percent': 100 if dl.status == 'completed' else 0})}\n\n"
+                    yield f"data: {json.dumps({'status': dl.status, 'percent': 100 if dl.status == 'completed' else 0, 'error': dl.error or ''})}\n\n"
                 else:
                     yield f"data: {json.dumps({'status': 'not_found'})}\n\n"
                 break

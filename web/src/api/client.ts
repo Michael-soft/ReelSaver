@@ -134,6 +134,12 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  cancelDownload: (taskId: string) =>
+    apiFetch<{ success: boolean }>(`/download/${taskId}/cancel`, { method: 'POST' }),
+
+  cleanupStuck: () =>
+    apiFetch<{ cleaned: number }>('/downloads/cleanup', { method: 'POST' }),
+
   getHistory: (params: { search?: string; type?: string; page?: number; perPage?: number }) => {
     const q = new URLSearchParams();
     if (params.search) q.set('search', params.search);
