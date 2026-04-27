@@ -193,3 +193,16 @@ body {
 }
 .chip.selected { background: rgba(124, 58, 237, 0.2); border-color: var(--accent); color: var(--accent-light); }
 .chip:hover:not(.selected) { border-color: var(--muted); color: var(--text); }
+
+.legal-body p { margin: 0 0 0.85rem; color: var(--text); }
+.legal-body ul { margin: 0 0 0.85rem; padding-left: 1.25rem; color: var(--text); }
+.legal-body li { margin-bottom: 0.4rem; }
+.legal-body a { color: var(--accent-light); text-decoration: underline; }
+.legal-body a:hover { color: var(--accent); }
+.legal-body code {
+  background: var(--surface2);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.85em;
+  border: 1px solid var(--border);
+}

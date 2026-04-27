@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { Layout } from './components/Layout'
 import { DownloadPage } from './pages/DownloadPage'
@@ -6,7 +6,10 @@ import { PlaylistPage } from './pages/PlaylistPage'
 import { HistoryPage } from './pages/HistoryPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { CommandPage } from './pages/CommandPage'
-import { LandingPage } from './pages/LandingPage'
+import { HomePage } from './pages/HomePage'
+import { LoginPage } from './pages/LoginPage'
+import { PrivacyPage } from './pages/PrivacyPage'
+import { TermsPage } from './pages/TermsPage'
 
 export interface User {
   id: string
@@ -55,21 +58,39 @@ export default function App() {
     )
   }
 
-  if (!user) {
-    return <LandingPage onAuthenticated={refreshUser} />
-  }
+  const isAuth = !!user
 
   return (
     <BrowserRouter>
-      <Layout user={user}>
-        <Routes>
-          <Route path="/" element={<DownloadPage />} />
-          <Route path="/playlist" element={<PlaylistPage />} />
-          <Route path="/history" element={<HistoryPage />} />
-          <Route path="/command" element={<CommandPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-        </Routes>
-      </Layout>
+      <Routes>
+        {/* Public legal pages — always accessible */}
+        <Route path="/privacy" element={<PrivacyPage isAuthenticated={isAuth} />} />
+        <Route path="/terms" element={<TermsPage isAuthenticated={isAuth} />} />
+
+        {isAuth && user ? (
+          <>
+            {/* Authenticated app — sidebar layout */}
+            <Route path="/app" element={<Layout user={user}><DownloadPage /></Layout>} />
+            <Route path="/app/playlist" element={<Layout user={user}><PlaylistPage /></Layout>} />
+            <Route path="/app/history" element={<Layout user={user}><HistoryPage /></Layout>} />
+            <Route path="/app/command" element={<Layout user={user}><CommandPage /></Layout>} />
+            <Route path="/app/settings" element={<Layout user={user}><SettingsPage /></Layout>} />
+
+            {/* Marketing home is still reachable when signed in */}
+            <Route path="/" element={<HomePage isAuthenticated />} />
+            <Route path="/login" element={<Navigate to="/app" replace />} />
+            <Route path="*" element={<Navigate to="/app" replace />} />
+          </>
+        ) : (
+          <>
+            {/* Public marketing + auth */}
+            <Route path="/" element={<HomePage />} />
+            <Route path="/login" element={<LoginPage onAuthenticated={refreshUser} />} />
+            {/* Anything else (e.g. /app/*) → bounce to login */}
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </>
+        )}
+      </Routes>
     </BrowserRouter>
   )
 }

@@ -46,23 +46,23 @@ export function Layout({ children, user }: LayoutProps) {
           </div>
         </div>
 
-        <NavLink to="/" end className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+        <NavLink to="/app" end className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <Download size={17} />
           Download
         </NavLink>
-        <NavLink to="/playlist" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+        <NavLink to="/app/playlist" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <ListVideo size={17} />
           Playlist
         </NavLink>
-        <NavLink to="/history" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+        <NavLink to="/app/history" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <History size={17} />
           History
         </NavLink>
-        <NavLink to="/command" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+        <NavLink to="/app/command" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <Terminal size={17} />
           Command
         </NavLink>
-        <NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+        <NavLink to="/app/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <Settings size={17} />
           Settings
         </NavLink>
