@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { Layout } from './components/Layout'
+import { useTheme } from './hooks/useTheme'
 import { DownloadPage } from './pages/DownloadPage'
 import { PlaylistPage } from './pages/PlaylistPage'
 import { HistoryPage } from './pages/HistoryPage'
@@ -26,6 +27,8 @@ export interface User {
 export default function App() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  // Initialize theme on app load (reads localStorage / OS preference)
+  useTheme()
 
   const refreshUser = () => {
     return fetch('/api/me', { credentials: 'include' })
