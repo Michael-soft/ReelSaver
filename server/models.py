@@ -22,6 +22,7 @@ class User(UserMixin, db.Model):
 class Download(db.Model):
     __tablename__ = 'downloads'
     id = db.Column(db.String, primary_key=True)
+    user_id = db.Column(db.String, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=True, index=True)
     url = db.Column(db.String, nullable=False)
     title = db.Column(db.String, nullable=True)
     thumbnail = db.Column(db.String, nullable=True)

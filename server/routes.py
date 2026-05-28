@@ -1,3 +1,4 @@
+import ipaddress
 import json
 import logging
 import os
@@ -7,11 +8,12 @@ import subprocess
 import threading
 import time
 import uuid
+from urllib.parse import urlparse
 
 from flask import jsonify, request, Response, send_from_directory, session
 from flask_login import current_user
 
-from app import app, db, DOWNLOADS_DIR
+from app import app, db, DOWNLOADS_DIR, limiter
 from models import Download, Setting, Template
 from auth import register_auth, require_login
 
@@ -23,17 +25,55 @@ download_progress = {}
 download_lock = threading.Lock()
 download_processes = {}  # task_id -> subprocess.Popen
 
-# Kill the download if no output is received for this many seconds.
 STALL_TIMEOUT = 180
-# Hard cap on how long any single download can run.
 MAX_DOWNLOAD_SECONDS = 30 * 60
+MAX_URL_LENGTH = 2048
+MAX_TITLE_LENGTH = 500
 
+
+# ─── URL validation (SSRF protection) ────────────────────────────────────────
+
+_BLOCKED_HOSTS = {'localhost', '127.0.0.1', '0.0.0.0', '::1', 'metadata.google.internal', '169.254.169.254'}
+
+
+def validate_url(url: str) -> tuple[bool, str]:
+    if not url:
+        return False, 'URL is required'
+    if len(url) > MAX_URL_LENGTH:
+        return False, f'URL too long (max {MAX_URL_LENGTH} chars)'
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False, 'Invalid URL'
+    if parsed.scheme not in ('http', 'https'):
+        return False, 'URL must start with http:// or https://'
+    host = (parsed.hostname or '').lower()
+    if not host:
+        return False, 'Invalid URL: missing host'
+    if host in _BLOCKED_HOSTS:
+        return False, 'URL not allowed'
+    try:
+        ip = ipaddress.ip_address(host)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+            return False, 'URL not allowed'
+    except ValueError:
+        pass  # domain name — fine
+    return True, ''
+
+
+def _sanitize_filename(name: str) -> str:
+    """Return just the basename, no path separators."""
+    return os.path.basename(name.replace('\\', '/'))
+
+
+# ─── Session ─────────────────────────────────────────────────────────────────
 
 @app.before_request
 def make_session_permanent():
     session.permanent = True
 
 
+# ─── /api/me ─────────────────────────────────────────────────────────────────
 
 @app.route('/api/me', methods=['GET'])
 def get_me():
@@ -50,6 +90,8 @@ def get_me():
     return jsonify(None)
 
 
+# ─── Settings helpers ─────────────────────────────────────────────────────────
+
 def get_setting(key, default=None):
     row = db.session.get(Setting, key)
     return row.value if row else default
@@ -65,6 +107,11 @@ def set_setting(key, value):
     db.session.commit()
 
 
+# ─── yt-dlp arg builder ───────────────────────────────────────────────────────
+
+_RATE_RE = re.compile(r'^\d+(\.\d+)?[KMGkmg]?$')
+
+
 def build_yt_dlp_args(settings=None):
     args = [
         'yt-dlp',
@@ -75,24 +122,37 @@ def build_yt_dlp_args(settings=None):
     ]
     if not settings:
         settings = {}
-    proxy = settings.get('proxy', get_setting('proxy', ''))
+
+    proxy = settings.get('proxy', get_setting('proxy', '')).strip()
     if proxy:
-        args += ['--proxy', proxy]
-    rate_limit = settings.get('rateLimit', get_setting('rateLimit', ''))
-    if rate_limit:
+        parsed = urlparse(proxy)
+        if parsed.scheme in ('http', 'https', 'socks4', 'socks5', 'socks4a', 'socks5h'):
+            args += ['--proxy', proxy]
+
+    rate_limit = settings.get('rateLimit', get_setting('rateLimit', '')).strip()
+    if rate_limit and _RATE_RE.match(rate_limit):
         args += ['--limit-rate', rate_limit]
-    cookie_file = settings.get('cookieFile', get_setting('cookieFile', ''))
-    if cookie_file and os.path.exists(cookie_file):
-        args += ['--cookies', cookie_file]
+
+    cookie_file = settings.get('cookieFile', get_setting('cookieFile', '')).strip()
+    if cookie_file:
+        safe_cookie = _sanitize_filename(cookie_file)
+        full_path = os.path.join(DOWNLOADS_DIR, safe_cookie)
+        if os.path.exists(full_path):
+            args += ['--cookies', full_path]
+
     return args
 
 
+# ─── /api/info ────────────────────────────────────────────────────────────────
+
 @app.route('/api/info', methods=['GET'])
 @require_login
+@limiter.limit("30 per minute")
 def get_info():
     url = request.args.get('url', '').strip()
-    if not url:
-        return jsonify({'error': 'URL is required'}), 400
+    ok, err = validate_url(url)
+    if not ok:
+        return jsonify({'error': err}), 400
     try:
         args = build_yt_dlp_args() + [
             '--dump-json', '--no-playlist',
@@ -140,12 +200,16 @@ def get_info():
         return jsonify({'error': str(e)}), 500
 
 
+# ─── /api/playlist ────────────────────────────────────────────────────────────
+
 @app.route('/api/playlist', methods=['GET'])
 @require_login
+@limiter.limit("20 per minute")
 def get_playlist():
     url = request.args.get('url', '').strip()
-    if not url:
-        return jsonify({'error': 'URL is required'}), 400
+    ok, err = validate_url(url)
+    if not ok:
+        return jsonify({'error': err}), 400
     try:
         args = build_yt_dlp_args() + [
             '--flat-playlist', '--dump-json',
@@ -178,6 +242,8 @@ def get_playlist():
         return jsonify({'error': str(e)}), 500
 
 
+# ─── Download engine ──────────────────────────────────────────────────────────
+
 def _kill_process(proc):
     try:
         if proc.poll() is None:
@@ -193,7 +259,7 @@ def _kill_process(proc):
 def run_download(task_id, url, options):
     with app.app_context():
         process = None
-        last_lines = []  # rolling buffer of recent output for error reporting
+        last_lines = []
         try:
             media_type = options.get('mediaType', 'video')
             quality = options.get('quality', 'best')
@@ -268,8 +334,6 @@ def run_download(task_id, url, options):
             with download_lock:
                 download_processes[task_id] = process
 
-            # Watchdog: kill if no output for STALL_TIMEOUT seconds, or
-            # if total runtime exceeds MAX_DOWNLOAD_SECONDS.
             started_at = time.time()
             last_output_at = [time.time()]
             stall_reason = ['']
@@ -350,6 +414,7 @@ def run_download(task_id, url, options):
                 with download_lock:
                     download_progress[task_id]['status'] = 'completed'
                     download_progress[task_id]['percent'] = 100
+                    download_progress[task_id]['filename'] = fname or ''
                 log.info('Download %s completed: %s', task_id, fname)
             else:
                 err = stall_reason[0] or _extract_error(last_lines) or 'Download failed'
@@ -380,30 +445,41 @@ def run_download(task_id, url, options):
 
 
 def _extract_error(lines):
-    """Pull the most useful-looking error message out of yt-dlp output."""
     for ln in reversed(lines):
         if 'ERROR:' in ln or 'error:' in ln.lower():
             return ln.split('ERROR:', 1)[-1].strip() or ln
     return lines[-1] if lines else ''
 
 
+# ─── /api/download ────────────────────────────────────────────────────────────
+
 @app.route('/api/download', methods=['POST'])
 @require_login
+@limiter.limit("10 per minute")
 def start_download():
     data = request.json or {}
-    url = data.get('url', '').strip()
-    if not url:
-        return jsonify({'error': 'URL is required'}), 400
+    url = (data.get('url') or '').strip()
+    ok, err = validate_url(url)
+    if not ok:
+        return jsonify({'error': err}), 400
+
+    title = (data.get('title') or url)[:MAX_TITLE_LENGTH]
+    thumbnail = (data.get('thumbnail') or '')[:500]
+    uploader = (data.get('uploader') or '')[:200]
+    duration = data.get('duration')
+    if duration is not None:
+        try:
+            duration = int(duration)
+        except (ValueError, TypeError):
+            duration = None
+    media_type = data.get('mediaType', 'video')
+    if media_type not in ('video', 'audio'):
+        media_type = 'video'
 
     task_id = str(uuid.uuid4())
-    title = data.get('title', url)
-    thumbnail = data.get('thumbnail', '')
-    uploader = data.get('uploader', '')
-    duration = data.get('duration')
-    media_type = data.get('mediaType', 'video')
-
     dl = Download(
         id=task_id,
+        user_id=current_user.id,
         url=url,
         title=title,
         thumbnail=thumbnail,
@@ -421,15 +497,19 @@ def start_download():
     return jsonify({'taskId': task_id, 'status': 'started'})
 
 
+# ─── /api/download/<id>/cancel ────────────────────────────────────────────────
+
 @app.route('/api/download/<task_id>/cancel', methods=['POST'])
 @require_login
 def cancel_download(task_id):
-    """Stop a running download and mark it failed."""
+    dl = db.session.get(Download, task_id)
+    if dl and dl.user_id and dl.user_id != current_user.id:
+        return jsonify({'error': 'Forbidden'}), 403
+
     with download_lock:
         proc = download_processes.get(task_id)
     if proc is not None:
         _kill_process(proc)
-    dl = db.session.get(Download, task_id)
     if dl and dl.status == 'downloading':
         dl.status = 'failed'
         dl.error = 'Cancelled by user'
@@ -442,12 +522,13 @@ def cancel_download(task_id):
     return jsonify({'success': True})
 
 
+# ─── /api/downloads/cleanup ───────────────────────────────────────────────────
+
 @app.route('/api/downloads/cleanup', methods=['POST'])
 @require_login
 def cleanup_stuck_downloads():
-    """Mark any download still in 'downloading' state as failed.
-    Useful after a server restart when in-memory state is lost."""
-    rows = db.session.query(Download).filter(Download.status == 'downloading').all()
+    query = db.session.query(Download).filter(Download.status == 'downloading')
+    rows = query.all()
     n = 0
     for dl in rows:
         with download_lock:
@@ -462,7 +543,6 @@ def cleanup_stuck_downloads():
 
 
 def _recover_stuck_on_startup():
-    """On server boot, mark any leftover 'downloading' rows as failed."""
     try:
         with app.app_context():
             rows = db.session.query(Download).filter(Download.status == 'downloading').all()
@@ -479,11 +559,12 @@ def _recover_stuck_on_startup():
 _recover_stuck_on_startup()
 
 
+# ─── /api/progress/<task_id> ──────────────────────────────────────────────────
+
 @app.route('/api/progress/<task_id>', methods=['GET'])
 @require_login
 def get_progress(task_id):
     def event_stream():
-        import time
         while True:
             with download_lock:
                 prog = download_progress.get(task_id)
@@ -495,7 +576,7 @@ def get_progress(task_id):
                 with app.app_context():
                     dl = db.session.get(Download, task_id)
                 if dl:
-                    yield f"data: {json.dumps({'status': dl.status, 'percent': 100 if dl.status == 'completed' else 0, 'error': dl.error or ''})}\n\n"
+                    yield f"data: {json.dumps({'status': dl.status, 'percent': 100 if dl.status == 'completed' else 0, 'error': dl.error or '', 'filename': dl.filename or ''})}\n\n"
                 else:
                     yield f"data: {json.dumps({'status': 'not_found'})}\n\n"
                 break
@@ -505,21 +586,25 @@ def get_progress(task_id):
                     headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
 
 
+# ─── /api/history ─────────────────────────────────────────────────────────────
+
 @app.route('/api/history', methods=['GET'])
 @require_login
 def get_history():
     search = request.args.get('search', '')
     media_type = request.args.get('type', '')
-    page = int(request.args.get('page', 1))
-    per_page = int(request.args.get('perPage', 20))
+    page = max(1, int(request.args.get('page', 1)))
+    per_page = min(100, max(1, int(request.args.get('perPage', 20))))
 
-    query = db.session.query(Download)
+    query = db.session.query(Download).filter(
+        (Download.user_id == current_user.id) | (Download.user_id == None)  # noqa: E711
+    )
     if search:
         like = f'%{search}%'
         query = query.filter(
-            (Download.title.like(like)) |
-            (Download.url.like(like)) |
-            (Download.uploader.like(like))
+            (Download.title.ilike(like)) |
+            (Download.url.ilike(like)) |
+            (Download.uploader.ilike(like))
         )
     if media_type in ('video', 'audio'):
         query = query.filter(Download.media_type == media_type)
@@ -551,11 +636,14 @@ def get_history():
 @require_login
 def delete_history(task_id):
     dl = db.session.get(Download, task_id)
-    if dl and dl.filename:
-        filepath = os.path.join(DOWNLOADS_DIR, dl.filename)
-        if os.path.exists(filepath):
-            os.remove(filepath)
+    if dl and dl.user_id and dl.user_id != current_user.id:
+        return jsonify({'error': 'Forbidden'}), 403
     if dl:
+        if dl.filename:
+            safe = _sanitize_filename(dl.filename)
+            filepath = os.path.join(DOWNLOADS_DIR, safe)
+            if os.path.exists(filepath):
+                os.remove(filepath)
         db.session.delete(dl)
         db.session.commit()
     return jsonify({'success': True})
@@ -565,39 +653,45 @@ def delete_history(task_id):
 @require_login
 def clear_history():
     ids = request.json.get('ids', []) if request.json else []
+    base_query = db.session.query(Download).filter(
+        (Download.user_id == current_user.id) | (Download.user_id == None)  # noqa: E711
+    )
     if ids:
-        for tid in ids:
-            dl = db.session.get(Download, tid)
-            if dl:
-                if dl.filename:
-                    fp = os.path.join(DOWNLOADS_DIR, dl.filename)
-                    if os.path.exists(fp):
-                        os.remove(fp)
-                db.session.delete(dl)
+        safe_ids = [str(i) for i in ids if isinstance(i, str)]
+        rows = base_query.filter(Download.id.in_(safe_ids)).all()
     else:
-        rows = db.session.query(Download).all()
-        for dl in rows:
-            if dl.filename:
-                fp = os.path.join(DOWNLOADS_DIR, dl.filename)
-                if os.path.exists(fp):
-                    os.remove(fp)
-            db.session.delete(dl)
+        rows = base_query.all()
+    for dl in rows:
+        if dl.filename:
+            safe = _sanitize_filename(dl.filename)
+            fp = os.path.join(DOWNLOADS_DIR, safe)
+            if os.path.exists(fp):
+                os.remove(fp)
+        db.session.delete(dl)
     db.session.commit()
     return jsonify({'success': True})
 
+
+# ─── /api/stats ───────────────────────────────────────────────────────────────
 
 @app.route('/api/stats', methods=['GET'])
 @require_login
 def get_stats():
     from sqlalchemy import func
-    total = db.session.query(func.count(Download.id)).scalar()
-    completed = db.session.query(func.count(Download.id)).filter(Download.status == 'completed').scalar()
-    failed = db.session.query(func.count(Download.id)).filter(Download.status == 'failed').scalar()
-    downloading = db.session.query(func.count(Download.id)).filter(Download.status == 'downloading').scalar()
-    audio_count = db.session.query(func.count(Download.id)).filter(Download.media_type == 'audio').scalar()
-    video_count = db.session.query(func.count(Download.id)).filter(Download.media_type == 'video').scalar()
-    total_size = db.session.query(func.sum(Download.filesize)).filter(Download.status == 'completed').scalar() or 0
-    recent = db.session.query(Download).order_by(Download.created_at.desc()).limit(5).all()
+    base = db.session.query(Download).filter(
+        (Download.user_id == current_user.id) | (Download.user_id == None)  # noqa: E711
+    )
+    total = base.count()
+    completed = base.filter(Download.status == 'completed').count()
+    failed = base.filter(Download.status == 'failed').count()
+    downloading = base.filter(Download.status == 'downloading').count()
+    audio_count = base.filter(Download.media_type == 'audio').count()
+    video_count = base.filter(Download.media_type == 'video').count()
+    total_size = db.session.query(func.sum(Download.filesize)).filter(
+        Download.status == 'completed',
+        (Download.user_id == current_user.id) | (Download.user_id == None)  # noqa: E711
+    ).scalar() or 0
+    recent = base.order_by(Download.created_at.desc()).limit(5).all()
 
     return jsonify({
         'total': total,
@@ -623,6 +717,8 @@ def get_stats():
         } for r in recent],
     })
 
+
+# ─── /api/settings ────────────────────────────────────────────────────────────
 
 @app.route('/api/settings', methods=['GET'])
 @require_login
@@ -652,10 +748,16 @@ def get_settings():
 @require_login
 def save_settings():
     data = request.json or {}
+    allowed_keys = {'proxy', 'rateLimit', 'concurrentDownloads', 'cookieFile',
+                    'sponsorBlock', 'embedThumbnail', 'embedMetadata',
+                    'defaultMediaType', 'defaultQuality', 'defaultAudioFormat'}
     for key, value in data.items():
-        set_setting(key, value)
+        if key in allowed_keys:
+            set_setting(key, str(value)[:500])
     return jsonify({'success': True})
 
+
+# ─── /api/templates ───────────────────────────────────────────────────────────
 
 @app.route('/api/templates', methods=['GET'])
 @require_login
@@ -667,10 +769,11 @@ def get_templates():
 
 @app.route('/api/templates', methods=['POST'])
 @require_login
+@limiter.limit("20 per hour")
 def create_template():
     data = request.json or {}
-    name = data.get('name', '').strip()
-    command = data.get('command', '').strip()
+    name = (data.get('name') or '').strip()[:100]
+    command = (data.get('command') or '').strip()[:1000]
     if not name or not command:
         return jsonify({'error': 'Name and command required'}), 400
     tid = str(uuid.uuid4())
@@ -690,15 +793,19 @@ def delete_template(tid):
     return jsonify({'success': True})
 
 
+# ─── /api/command ─────────────────────────────────────────────────────────────
+
 @app.route('/api/command', methods=['POST'])
 @require_login
+@limiter.limit("5 per minute")
 def run_command():
     data = request.json or {}
-    url = data.get('url', '').strip()
-    command = data.get('command', '').strip()
-    if not url:
-        return jsonify({'error': 'URL is required'}), 400
+    url = (data.get('url') or '').strip()
+    ok, err = validate_url(url)
+    if not ok:
+        return jsonify({'error': err}), 400
 
+    command = (data.get('command') or '').strip()[:1000]
     cmd_parts = command.split() if command else []
     safe_args = ['yt-dlp']
     allowed_flags = [
@@ -733,11 +840,25 @@ def run_command():
         return jsonify({'error': str(e)}), 500
 
 
+# ─── /api/files/<filename> ────────────────────────────────────────────────────
+
 @app.route('/api/files/<path:filename>', methods=['GET'])
 @require_login
 def serve_file(filename):
-    return send_from_directory(DOWNLOADS_DIR, filename)
+    safe_name = _sanitize_filename(filename)
+    if not safe_name or safe_name != os.path.basename(safe_name):
+        return jsonify({'error': 'Invalid filename'}), 400
+    full_path = os.path.join(DOWNLOADS_DIR, safe_name)
+    if not os.path.exists(full_path):
+        return jsonify({'error': 'File not found'}), 404
+    return send_from_directory(
+        os.path.abspath(DOWNLOADS_DIR),
+        safe_name,
+        as_attachment=True,
+    )
 
+
+# ─── SPA fallback ─────────────────────────────────────────────────────────────
 
 @app.route('/')
 def serve_index():
@@ -756,3 +877,8 @@ def spa_fallback(_e):
     if not os.path.exists(index_path):
         return jsonify({'error': 'Frontend not built'}), 503
     return send_from_directory(app.static_folder, 'index.html')
+
+
+@app.errorhandler(429)
+def rate_limit_error(e):
+    return jsonify({'error': 'Too many requests — please wait a moment before trying again.'}), 429

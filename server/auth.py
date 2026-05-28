@@ -9,7 +9,7 @@ from flask_dance.contrib.google import make_google_blueprint, google
 from flask_login import LoginManager, current_user, login_user, logout_user
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from app import app, db
+from app import app, db, limiter
 from models import User
 
 login_manager = LoginManager(app)
@@ -55,6 +55,7 @@ auth_bp = Blueprint('auth', __name__)
 
 
 @auth_bp.route('/register', methods=['POST'])
+@limiter.limit("5 per minute; 20 per hour")
 def register():
     data = request.get_json(silent=True) or {}
     username = (data.get('username') or '').strip()
@@ -62,11 +63,13 @@ def register():
     password = data.get('password') or ''
 
     if not USERNAME_RE.match(username):
-        return jsonify({'error': 'Username must be 3-32 chars, letters/numbers/._- only'}), 400
+        return jsonify({'error': 'Username must be 3–32 characters: letters, numbers, . _ - only'}), 400
     if email and not EMAIL_RE.match(email):
         return jsonify({'error': 'Invalid email address'}), 400
     if len(password) < 8:
         return jsonify({'error': 'Password must be at least 8 characters'}), 400
+    if len(password) > 128:
+        return jsonify({'error': 'Password too long (max 128 characters)'}), 400
 
     if db.session.query(User).filter_by(username=username).first():
         return jsonify({'error': 'Username already taken'}), 409
@@ -87,12 +90,15 @@ def register():
 
 
 @auth_bp.route('/login', methods=['POST'])
+@limiter.limit("10 per minute; 50 per hour")
 def login():
     data = request.get_json(silent=True) or {}
     identifier = (data.get('username') or data.get('email') or '').strip()
     password = data.get('password') or ''
     if not identifier or not password:
         return jsonify({'error': 'Username/email and password are required'}), 400
+    if len(identifier) > 255 or len(password) > 128:
+        return jsonify({'error': 'Invalid credentials'}), 401
 
     q = db.session.query(User)
     if '@' in identifier:
@@ -195,7 +201,7 @@ def google_logged_in(blueprint, token):
 
     db.session.commit()
     login_user(u, remember=True)
-    return redirect('/')
+    return redirect('/app')
 
 
 @oauth_error.connect_via(google_bp)
