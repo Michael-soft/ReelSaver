@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { Download, History, Settings, Terminal, ListVideo, LogOut, Menu, X, Eraser } from 'lucide-react'
+import { Download, History, Settings, Terminal, ListVideo, LogOut, Menu, X, Eraser, Smartphone } from 'lucide-react'
 import type { User } from '../App'
 
 interface LayoutProps {
@@ -102,6 +102,10 @@ export function Layout({ children, user }: LayoutProps) {
         <NavLink to="/app/watermark" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <Eraser size={17} />
           Remove Watermark
+        </NavLink>
+        <NavLink to="/app/whatsapp" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+          <Smartphone size={17} style={{ color: 'inherit' }} />
+          WA Status Saver
         </NavLink>
         <NavLink to="/app/history" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <History size={17} />
