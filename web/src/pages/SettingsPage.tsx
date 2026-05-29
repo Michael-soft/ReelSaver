@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Save, CheckCircle, Loader2 } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Save, CheckCircle, Loader2, Upload, RefreshCw, Info } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Settings } from '../api/client'
 import { api } from '../api/client'
@@ -18,7 +18,7 @@ function SettingRow({ label, description, children }: { label: string; descripti
       display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1.5rem',
       padding: '0.875rem 0', borderBottom: '1px solid var(--border)',
     }}>
-      <div>
+      <div style={{ flex: 1 }}>
         <div style={{ fontSize: '0.9375rem', fontWeight: 500, color: 'var(--text)' }}>{label}</div>
         {description && <div style={{ fontSize: '0.8125rem', color: 'var(--muted)', marginTop: '2px' }}>{description}</div>}
       </div>
@@ -52,9 +52,24 @@ export function SettingsPage() {
     defaultAudioFormat: 'mp3',
   })
 
+  // Cookie upload state
+  const cookieInputRef = useRef<HTMLInputElement>(null)
+  const [cookieUploading, setCookieUploading] = useState(false)
+  const [cookieStatus, setCookieStatus] = useState<{ ok: boolean; msg: string } | null>(null)
+
+  // yt-dlp update state
+  const [updating, setUpdating] = useState(false)
+  const [updateResult, setUpdateResult] = useState<{ ok: boolean; msg: string } | null>(null)
+
   const { data: settings, isLoading } = useQuery({
     queryKey: ['settings'],
     queryFn: api.getSettings,
+  })
+
+  const { data: ytdlpVersion } = useQuery({
+    queryKey: ['ytdlp-version'],
+    queryFn: api.getYtdlpVersion,
+    staleTime: 60000,
   })
 
   useEffect(() => {
@@ -76,8 +91,43 @@ export function SettingsPage() {
   const toggle = (key: keyof Settings) =>
     set(key, form[key] === 'true' ? 'false' : 'true')
 
+  async function handleCookieUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setCookieUploading(true)
+    setCookieStatus(null)
+    try {
+      await api.uploadCookieFile(file)
+      setCookieStatus({ ok: true, msg: 'cookies.txt uploaded and saved.' })
+      qc.invalidateQueries({ queryKey: ['settings'] })
+    } catch (err) {
+      setCookieStatus({ ok: false, msg: (err as Error).message })
+    } finally {
+      setCookieUploading(false)
+      if (cookieInputRef.current) cookieInputRef.current.value = ''
+    }
+  }
+
+  async function handleUpdateYtdlp() {
+    setUpdating(true)
+    setUpdateResult(null)
+    try {
+      const res = await api.updateYtdlp()
+      if (res.success) {
+        setUpdateResult({ ok: true, msg: `Updated to v${res.version}` })
+        qc.invalidateQueries({ queryKey: ['ytdlp-version'] })
+      } else {
+        setUpdateResult({ ok: false, msg: res.error || 'Update failed' })
+      }
+    } catch (err) {
+      setUpdateResult({ ok: false, msg: (err as Error).message })
+    } finally {
+      setUpdating(false)
+    }
+  }
+
   if (isLoading) {
-    return <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--muted)' }}>Loading...</div>
+    return <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--muted)' }}>Loading…</div>
   }
 
   return (
@@ -87,11 +137,7 @@ export function SettingsPage() {
           <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: '0 0 0.25rem', color: 'var(--text)' }}>Settings</h1>
           <p style={{ color: 'var(--muted)', margin: 0, fontSize: '0.9375rem' }}>Configure download preferences</p>
         </div>
-        <button
-          className="btn-primary"
-          onClick={() => saveMutation.mutate()}
-          disabled={saveMutation.isPending}
-        >
+        <button className="btn-primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
           {saveMutation.isPending ? (
             <Loader2 size={15} className="spinner" />
           ) : saved ? (
@@ -154,7 +200,7 @@ export function SettingsPage() {
         <SettingRow label="Proxy" description="HTTP, HTTPS, or SOCKS5 proxy URL">
           <input
             className="input-base"
-            style={{ width: '240px' }}
+            style={{ width: '220px' }}
             placeholder="http://proxy:port"
             value={form.proxy}
             onChange={e => set('proxy', e.target.value)}
@@ -163,7 +209,7 @@ export function SettingsPage() {
         <SettingRow label="Rate limit" description="Maximum download speed (e.g. 2M, 500K)">
           <input
             className="input-base"
-            style={{ width: '160px' }}
+            style={{ width: '140px' }}
             placeholder="e.g. 2M"
             value={form.rateLimit}
             onChange={e => set('rateLimit', e.target.value)}
@@ -174,15 +220,89 @@ export function SettingsPage() {
             {['1', '2', '3', '5', '10'].map(n => <option key={n} value={n}>{n}</option>)}
           </select>
         </SettingRow>
-        <SettingRow label="Cookie file" description="Path to a cookies.txt file for restricted content" >
-          <input
-            className="input-base"
-            style={{ width: '240px' }}
-            placeholder="/path/to/cookies.txt"
-            value={form.cookieFile}
-            onChange={e => set('cookieFile', e.target.value)}
-          />
-        </SettingRow>
+
+        {/* Cookie file upload */}
+        <div style={{ padding: '0.875rem 0', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1.5rem', marginBottom: cookieStatus ? '0.625rem' : 0 }}>
+            <div>
+              <div style={{ fontSize: '0.9375rem', fontWeight: 500, color: 'var(--text)' }}>Cookie file</div>
+              <div style={{ fontSize: '0.8125rem', color: 'var(--muted)', marginTop: '2px' }}>
+                Upload a Netscape-format cookies.txt for age-restricted or private content
+              </div>
+              {form.cookieFile && (
+                <div style={{ fontSize: '0.75rem', color: 'var(--success)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <CheckCircle size={11} /> Active: {form.cookieFile}
+                </div>
+              )}
+            </div>
+            <div style={{ flexShrink: 0 }}>
+              <input
+                ref={cookieInputRef}
+                type="file"
+                accept=".txt,text/plain"
+                style={{ display: 'none' }}
+                onChange={handleCookieUpload}
+              />
+              <button
+                className="btn-secondary"
+                style={{ minWidth: 'unset' }}
+                onClick={() => cookieInputRef.current?.click()}
+                disabled={cookieUploading}
+              >
+                {cookieUploading ? <Loader2 size={14} className="spinner" /> : <Upload size={14} />}
+                {cookieUploading ? 'Uploading…' : 'Upload .txt'}
+              </button>
+            </div>
+          </div>
+          {cookieStatus && (
+            <div style={{
+              fontSize: '0.8125rem',
+              color: cookieStatus.ok ? 'var(--success)' : 'var(--error)',
+              display: 'flex', alignItems: 'center', gap: '0.375rem',
+            }}>
+              {cookieStatus.ok ? <CheckCircle size={13} /> : <Info size={13} />}
+              {cookieStatus.msg}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <SectionTitle>Maintenance</SectionTitle>
+      <div className="card">
+        <div style={{ padding: '0.875rem 0' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1.5rem' }}>
+            <div>
+              <div style={{ fontSize: '0.9375rem', fontWeight: 500, color: 'var(--text)' }}>yt-dlp version</div>
+              <div style={{ fontSize: '0.8125rem', color: 'var(--muted)', marginTop: '2px' }}>
+                Keep yt-dlp updated to fix broken extractors
+              </div>
+              {ytdlpVersion && (
+                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '4px', fontFamily: 'monospace' }}>
+                  Current: {ytdlpVersion.version}
+                </div>
+              )}
+              {updateResult && (
+                <div style={{
+                  fontSize: '0.8125rem', marginTop: '0.375rem',
+                  color: updateResult.ok ? 'var(--success)' : 'var(--error)',
+                  display: 'flex', alignItems: 'center', gap: '0.375rem',
+                }}>
+                  {updateResult.ok ? <CheckCircle size={13} /> : <Info size={13} />}
+                  {updateResult.msg}
+                </div>
+              )}
+            </div>
+            <button
+              className="btn-secondary"
+              style={{ flexShrink: 0, minWidth: 'unset' }}
+              onClick={handleUpdateYtdlp}
+              disabled={updating}
+            >
+              {updating ? <Loader2 size={14} className="spinner" /> : <RefreshCw size={14} />}
+              {updating ? 'Updating…' : 'Update'}
+            </button>
+          </div>
+        </div>
       </div>
 
       <div style={{ height: '2rem' }} />

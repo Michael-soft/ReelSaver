@@ -9,12 +9,13 @@
   "background_color": "#0f0f0f",
   "theme_color": "#7c3aed",
   "categories": ["utilities", "productivity"],
+  "lang": "en",
   "icons": [
     {
       "src": "/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/icon-192.png",
@@ -26,21 +27,39 @@
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "maskable"
     }
   ],
   "shortcuts": [
     {
       "name": "Download Video",
       "short_name": "Download",
-      "url": "/app",
-      "description": "Download a video or audio track"
+      "url": "/app/download",
+      "description": "Download a video or audio track",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Remove Watermark",
+      "short_name": "Watermark",
+      "url": "/app/watermark",
+      "description": "Download TikTok / Reels without watermark",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "View History",
       "short_name": "History",
       "url": "/app/history",
-      "description": "Browse your download history"
+      "description": "Browse your download history",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
-  ]
+  ],
+  "share_target": {
+    "action": "/share-target",
+    "method": "GET",
+    "params": {
+      "url": "url",
+      "text": "text",
+      "title": "title"
+    }
+  }
 }

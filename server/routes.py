@@ -444,7 +444,32 @@ def run_download(task_id, url, options):
                 _kill_process(process)
 
 
+_ERROR_HINTS = [
+    ('Sign in to confirm', 'Sign-in required — upload a cookies.txt file in Settings → Network.'),
+    ('Sign in', 'Account sign-in required — upload a cookies.txt file in Settings → Network.'),
+    ('login required', 'Login required — upload a cookies.txt file in Settings → Network.'),
+    ('This video is private', 'This video is private and cannot be downloaded.'),
+    ('age-restricted', 'Age-restricted video — upload a cookies.txt file in Settings → Network.'),
+    ('age restricted', 'Age-restricted video — upload a cookies.txt file in Settings → Network.'),
+    ('confirm your age', 'Age verification required — upload a cookies.txt file in Settings → Network.'),
+    ('members-only', 'Members-only content — upload a cookies.txt file in Settings → Network.'),
+    ('This video is not available', 'Video not available in your region or has been removed.'),
+    ('Video unavailable', 'Video unavailable — it may have been removed or made private.'),
+    ('HTTP Error 403', 'Access denied (HTTP 403) — the content may be region-locked or require login.'),
+    ('HTTP Error 404', 'Video not found (HTTP 404) — the URL may be invalid or the video was deleted.'),
+    ('Requested format', 'The requested quality/format is not available — try a different quality.'),
+    ('not a bot', 'Bot detection triggered — wait a few minutes and try again.'),
+    ('Unable to extract', 'Could not extract video info — the URL may be unsupported or the page changed.'),
+    ('No video formats found', 'No downloadable formats found for this URL.'),
+    ('ffmpeg', 'ffmpeg error during post-processing — the download may still be available as a raw file.'),
+]
+
+
 def _extract_error(lines):
+    text = '\n'.join(lines)
+    for keyword, hint in _ERROR_HINTS:
+        if keyword.lower() in text.lower():
+            return hint
     for ln in reversed(lines):
         if 'ERROR:' in ln or 'error:' in ln.lower():
             return ln.split('ERROR:', 1)[-1].strip() or ln
@@ -475,6 +500,19 @@ def start_download():
     media_type = data.get('mediaType', 'video')
     if media_type not in ('video', 'audio'):
         media_type = 'video'
+
+    # Enforce concurrent download limit
+    try:
+        max_concurrent = int(get_setting('concurrentDownloads', '3') or '3')
+    except (ValueError, TypeError):
+        max_concurrent = 3
+    with download_lock:
+        active_count = len(download_processes)
+    if active_count >= max_concurrent:
+        return jsonify({
+            'error': f'Download queue full — you have {active_count} active download(s). '
+                     f'Wait for one to finish or increase the limit in Settings → Network.'
+        }), 429
 
     task_id = str(uuid.uuid4())
     dl = Download(
@@ -856,6 +894,84 @@ def serve_file(filename):
         safe_name,
         as_attachment=True,
     )
+
+
+# ─── /api/cookie-upload ───────────────────────────────────────────────────────
+
+@app.route('/api/cookie-upload', methods=['POST'])
+@require_login
+@limiter.limit("20 per hour")
+def upload_cookie():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    f = request.files['file']
+    if not f.filename:
+        return jsonify({'error': 'No filename'}), 400
+    content = f.read(512 * 1024)  # max 512 KB
+    if not content:
+        return jsonify({'error': 'File is empty'}), 400
+    # Basic Netscape cookie format check
+    if not content.lstrip().startswith(b'# Netscape') and b'\t' not in content[:2048]:
+        log.warning('Uploaded cookie file does not look like Netscape format')
+    filepath = os.path.join(DOWNLOADS_DIR, 'cookies.txt')
+    with open(filepath, 'wb') as out:
+        out.write(content)
+    set_setting('cookieFile', 'cookies.txt')
+    return jsonify({'success': True, 'filename': 'cookies.txt'})
+
+
+# ─── /api/ytdlp-version ───────────────────────────────────────────────────────
+
+@app.route('/api/ytdlp-version', methods=['GET'])
+@require_login
+def get_ytdlp_version():
+    try:
+        result = subprocess.run(['yt-dlp', '--version'], capture_output=True, text=True, timeout=10)
+        return jsonify({'version': result.stdout.strip() if result.returncode == 0 else 'unknown'})
+    except Exception:
+        return jsonify({'version': 'unknown'})
+
+
+# ─── /api/update-ytdlp ────────────────────────────────────────────────────────
+
+@app.route('/api/update-ytdlp', methods=['POST'])
+@require_login
+@limiter.limit("10 per day")
+def update_ytdlp():
+    try:
+        result = subprocess.run(
+            ['pip', 'install', '--upgrade', 'yt-dlp'],
+            capture_output=True, text=True, timeout=120
+        )
+        ver = subprocess.run(['yt-dlp', '--version'], capture_output=True, text=True, timeout=10)
+        version = ver.stdout.strip() if ver.returncode == 0 else 'unknown'
+        return jsonify({
+            'success': result.returncode == 0,
+            'version': version,
+            'output': (result.stdout + result.stderr)[-1500:],
+        })
+    except subprocess.TimeoutExpired:
+        return jsonify({'error': 'Update timed out (>2 min)'}), 408
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ─── /api/disk-usage ──────────────────────────────────────────────────────────
+
+@app.route('/api/disk-usage', methods=['GET'])
+@require_login
+def get_disk_usage():
+    total_size = 0
+    file_count = 0
+    try:
+        for fn in os.listdir(DOWNLOADS_DIR):
+            fp = os.path.join(DOWNLOADS_DIR, fn)
+            if os.path.isfile(fp):
+                total_size += os.path.getsize(fp)
+                file_count += 1
+    except Exception:
+        pass
+    return jsonify({'totalSize': total_size, 'fileCount': file_count})
 
 
 # ─── SPA fallback ─────────────────────────────────────────────────────────────

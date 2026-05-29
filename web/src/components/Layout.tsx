@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { Download, History, Settings, Terminal, ListVideo, LogOut, Menu, X, Eraser, Smartphone, Sun, Moon } from 'lucide-react'
+import { Download, History, Settings, Terminal, ListVideo, LogOut, Menu, X, Eraser, Smartphone, Sun, Moon, LayoutDashboard } from 'lucide-react'
 import type { User } from '../App'
 import { useTheme } from '../hooks/useTheme'
+import { useDownloadQueue } from '../contexts/DownloadQueueContext'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -15,6 +16,7 @@ export function Layout({ children, user }: LayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const location = useLocation()
   const { toggle, isDark } = useTheme()
+  const { activeCount } = useDownloadQueue()
 
   useEffect(() => {
     setMobileOpen(false)
@@ -111,7 +113,22 @@ export function Layout({ children, user }: LayoutProps) {
 
         {/* Nav links */}
         <NavLink to="/app" end className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <Download size={17} /> Download
+          <LayoutDashboard size={17} /> Dashboard
+        </NavLink>
+        <NavLink to="/app/download" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+          <Download size={17} />
+          <span style={{ flex: 1 }}>Download</span>
+          {activeCount > 0 && (
+            <span style={{
+              minWidth: '18px', height: '18px', borderRadius: '99px',
+              background: 'var(--accent)', color: 'white',
+              fontSize: '0.6875rem', fontWeight: 700,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              padding: '0 4px',
+            }}>
+              {activeCount}
+            </span>
+          )}
         </NavLink>
         <NavLink to="/app/playlist" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <ListVideo size={17} /> Playlist

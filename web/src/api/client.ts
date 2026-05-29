@@ -197,6 +197,25 @@ export const api = {
   },
 
   getFileUrl: (filename: string) => `/api/files/${encodeURIComponent(filename)}`,
+
+  uploadCookieFile: (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return fetch('/api/cookie-upload', { method: 'POST', body: form, credentials: 'include' })
+      .then(async r => {
+        const data = await r.json().catch(() => ({ error: 'Request failed' }));
+        if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+        return data as { success: boolean; filename: string };
+      });
+  },
+
+  getYtdlpVersion: () => apiFetch<{ version: string }>('/ytdlp-version'),
+
+  updateYtdlp: () => apiFetch<{ success: boolean; version: string; output?: string; error?: string }>(
+    '/update-ytdlp', { method: 'POST' }
+  ),
+
+  getDiskUsage: () => apiFetch<{ totalSize: number; fileCount: number }>('/disk-usage'),
 };
 
 export function formatDuration(seconds: number | null | undefined): string {
