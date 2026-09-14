@@ -31,7 +31,7 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python main.py"
+args = "cd backend && python wsgi.py"
 waitForPort = 8000
 
 [[workflows.workflow]]
@@ -40,7 +40,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd web && npm run dev"
+args = "cd frontend && npm run dev"
 waitForPort = 5000
 
 [workflows.workflow.metadata]
@@ -56,5 +56,5 @@ externalPort = 8000
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["gunicorn", "--bind=0.0.0.0:5000", "--workers=2", "--timeout=120", "main:app"]
-build = ["bash", "-c", "cd web && npm install && npm run build"]
+run = ["bash", "-c", "cd backend && gunicorn --bind=0.0.0.0:5000 --workers=2 --timeout=120 wsgi:app"]
+build = ["bash", "-c", "cd frontend && npm install && npm run build"]

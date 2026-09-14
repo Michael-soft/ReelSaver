@@ -3,6 +3,7 @@ import { Save, CheckCircle, Loader2, Upload, RefreshCw, Info } from 'lucide-reac
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Settings } from '../api/client'
 import { api } from '../api/client'
+import type { User } from '../App'
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
@@ -36,7 +37,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
   )
 }
 
-export function SettingsPage() {
+export function SettingsPage({ user }: { user: User }) {
   const qc = useQueryClient()
   const [saved, setSaved] = useState(false)
   const [form, setForm] = useState<Settings>({
@@ -267,43 +268,47 @@ export function SettingsPage() {
         </div>
       </div>
 
-      <SectionTitle>Maintenance</SectionTitle>
-      <div className="card">
-        <div style={{ padding: '0.875rem 0' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1.5rem' }}>
-            <div>
-              <div style={{ fontSize: '0.9375rem', fontWeight: 500, color: 'var(--text)' }}>yt-dlp version</div>
-              <div style={{ fontSize: '0.8125rem', color: 'var(--muted)', marginTop: '2px' }}>
-                Keep yt-dlp updated to fix broken extractors
+      {user.is_admin && (
+        <>
+          <SectionTitle>Maintenance</SectionTitle>
+          <div className="card">
+            <div style={{ padding: '0.875rem 0' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1.5rem' }}>
+                <div>
+                  <div style={{ fontSize: '0.9375rem', fontWeight: 500, color: 'var(--text)' }}>yt-dlp version</div>
+                  <div style={{ fontSize: '0.8125rem', color: 'var(--muted)', marginTop: '2px' }}>
+                    Keep yt-dlp updated to fix broken extractors
+                  </div>
+                  {ytdlpVersion && (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '4px', fontFamily: 'monospace' }}>
+                      Current: {ytdlpVersion.version}
+                    </div>
+                  )}
+                  {updateResult && (
+                    <div style={{
+                      fontSize: '0.8125rem', marginTop: '0.375rem',
+                      color: updateResult.ok ? 'var(--success)' : 'var(--error)',
+                      display: 'flex', alignItems: 'center', gap: '0.375rem',
+                    }}>
+                      {updateResult.ok ? <CheckCircle size={13} /> : <Info size={13} />}
+                      {updateResult.msg}
+                    </div>
+                  )}
+                </div>
+                <button
+                  className="btn-secondary"
+                  style={{ flexShrink: 0, minWidth: 'unset' }}
+                  onClick={handleUpdateYtdlp}
+                  disabled={updating}
+                >
+                  {updating ? <Loader2 size={14} className="spinner" /> : <RefreshCw size={14} />}
+                  {updating ? 'Updating…' : 'Update'}
+                </button>
               </div>
-              {ytdlpVersion && (
-                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '4px', fontFamily: 'monospace' }}>
-                  Current: {ytdlpVersion.version}
-                </div>
-              )}
-              {updateResult && (
-                <div style={{
-                  fontSize: '0.8125rem', marginTop: '0.375rem',
-                  color: updateResult.ok ? 'var(--success)' : 'var(--error)',
-                  display: 'flex', alignItems: 'center', gap: '0.375rem',
-                }}>
-                  {updateResult.ok ? <CheckCircle size={13} /> : <Info size={13} />}
-                  {updateResult.msg}
-                </div>
-              )}
             </div>
-            <button
-              className="btn-secondary"
-              style={{ flexShrink: 0, minWidth: 'unset' }}
-              onClick={handleUpdateYtdlp}
-              disabled={updating}
-            >
-              {updating ? <Loader2 size={14} className="spinner" /> : <RefreshCw size={14} />}
-              {updating ? 'Updating…' : 'Update'}
-            </button>
           </div>
-        </div>
-      </div>
+        </>
+      )}
 
       <div style={{ height: '2rem' }} />
     </div>

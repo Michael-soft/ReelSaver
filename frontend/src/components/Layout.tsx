@@ -142,9 +142,11 @@ export function Layout({ children, user }: LayoutProps) {
         <NavLink to="/app/history" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <History size={17} /> History
         </NavLink>
-        <NavLink to="/app/command" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <Terminal size={17} /> Command
-        </NavLink>
+        {user.is_admin && (
+          <NavLink to="/app/command" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+            <Terminal size={17} /> Command
+          </NavLink>
+        )}
         <NavLink to="/app/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <Settings size={17} /> Settings
         </NavLink>

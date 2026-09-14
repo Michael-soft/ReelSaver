@@ -1,0 +1,10 @@
+Database migrations for ReelSaver (Flask-Migrate + Alembic).
+
+Common commands (run from backend/, with env vars loaded):
+
+  flask db upgrade                 # apply all pending migrations
+  flask db migrate -m "message"    # autogenerate a new migration from model changes
+  flask db downgrade               # revert the last migration
+  flask db current                 # show current revision
+
+The Flask app is discovered via FLASK_APP=wsgi.py.

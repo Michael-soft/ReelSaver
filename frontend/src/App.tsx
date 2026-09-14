@@ -25,6 +25,7 @@ export interface User {
   last_name: string | null
   profile_image_url: string | null
   auth_provider: string
+  is_admin?: boolean
 }
 
 export default function App() {
@@ -113,13 +114,15 @@ export default function App() {
               </DownloadQueueProvider>
             } />
             <Route path="/app/command" element={
-              <DownloadQueueProvider>
-                <Layout user={user}><CommandPage /></Layout>
-              </DownloadQueueProvider>
+              user.is_admin ? (
+                <DownloadQueueProvider>
+                  <Layout user={user}><CommandPage /></Layout>
+                </DownloadQueueProvider>
+              ) : <Navigate to="/app" replace />
             } />
             <Route path="/app/settings" element={
               <DownloadQueueProvider>
-                <Layout user={user}><SettingsPage /></Layout>
+                <Layout user={user}><SettingsPage user={user} /></Layout>
               </DownloadQueueProvider>
             } />
             <Route path="/" element={<HomePage isAuthenticated />} />
