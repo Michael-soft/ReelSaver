@@ -53,6 +53,28 @@ def extract_error(lines: list[str]) -> str:
     return lines[-1] if lines else ''
 
 
+def _resolve_final_file(tracked_path: str) -> str | None:
+    """Find the actual output file when a post-processor changed the extension.
+
+    Matches by filename stem within the downloads directory and returns the
+    most recently modified match.
+    """
+    directory = os.path.dirname(tracked_path) or Config.DOWNLOADS_DIR
+    stem = os.path.splitext(os.path.basename(tracked_path))[0]
+    try:
+        candidates = [
+            os.path.join(directory, f)
+            for f in os.listdir(directory)
+            if os.path.splitext(f)[0] == stem
+        ]
+    except OSError:
+        return None
+    candidates = [c for c in candidates if os.path.isfile(c)]
+    if not candidates:
+        return None
+    return max(candidates, key=os.path.getmtime)
+
+
 def kill_process(proc: subprocess.Popen) -> None:
     try:
         if proc.poll() is None:
@@ -95,18 +117,24 @@ def _build_download_args(user_id: str, url: str, options: dict) -> list[str]:
         quality_map = {'best': '0', '320k': '0', '256k': '5', '192k': '5', '128k': '7'}
         args += ['--audio-quality', quality_map.get(quality, '5')]
     else:
-        quality_map = {
-            'best': 'bestvideo*[ext=mp4]+bestaudio[ext=m4a]/bestvideo*+bestaudio/best',
-            '4k': 'bestvideo[height<=2160]+bestaudio/best[height<=2160]',
-            '1440p': 'bestvideo[height<=1440]+bestaudio/best[height<=1440]',
-            '1080p': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
-            '720p': 'bestvideo[height<=720]+bestaudio/best[height<=720]',
-            '480p': 'bestvideo[height<=480]+bestaudio/best[height<=480]',
-            '360p': 'bestvideo[height<=360]+bestaudio/best[height<=360]',
-        }
-        fmt = quality_map.get(quality, 'bestvideo*+bestaudio/best')
-        if video_format == 'mkv':
-            args += ['--remux-video', 'mkv']
+        # Prefer the requested container when picking source streams so the
+        # merge/remux step doesn't have to transcode when it can be avoided.
+        if video_format == 'mp4':
+            best = 'bestvideo*[ext=mp4]+bestaudio[ext=m4a]/bestvideo*+bestaudio/best'
+            height = 'bestvideo[height<={h}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={h}]+bestaudio/best[height<={h}]'
+        else:
+            best = 'bestvideo*+bestaudio/best'
+            height = 'bestvideo[height<={h}]+bestaudio/best[height<={h}]'
+        height_map = {'4k': 2160, '1440p': 1440, '1080p': 1080, '720p': 720, '480p': 480, '360p': 360}
+        if quality == 'best':
+            fmt = best
+        elif quality in height_map:
+            fmt = height.format(h=height_map[quality])
+        else:
+            fmt = best
+        # Ensure the final file matches the chosen container.
+        if video_format in ('mp4', 'mkv', 'webm'):
+            args += ['--remux-video', video_format]
         args += ['--format', fmt]
 
     if embed_thumbnail:
@@ -183,6 +211,13 @@ def run_download(app, task_id: str, url: str, options: dict, user_id: str) -> No
                 eta_match = re.search(r'ETA\s+([\d:]+)', line)
                 dest_match = re.search(r'\[download\] Destination:\s+(.+)', line)
                 merge_match = re.search(r'Merging formats into "(.+)"', line)
+                # Post-processors rename the file (audio extract, recode, remux, fixup),
+                # so the final path differs from the [download] Destination.
+                pp_dest_match = re.search(
+                    r'\[(?:ExtractAudio|VideoConvertor|VideoRemuxer|Fixup\w*)\] '
+                    r'(?:Destination:|.*into "?)\s*(.+?)"?$',
+                    line,
+                )
 
                 with download_lock:
                     prog = download_progress.get(task_id, {})
@@ -198,6 +233,9 @@ def run_download(app, task_id: str, url: str, options: dict, user_id: str) -> No
                     if merge_match:
                         filename = merge_match.group(1).strip()
                         prog['filename'] = filename
+                    if pp_dest_match:
+                        filename = pp_dest_match.group(1).strip()
+                        prog['filename'] = filename
                     download_progress[task_id] = prog
 
             process.wait()
@@ -208,6 +246,12 @@ def run_download(app, task_id: str, url: str, options: dict, user_id: str) -> No
 
             dl = db.session.get(Download, task_id)
             if process.returncode == 0 and not stall_reason[0]:
+                # Post-processing may have renamed the file (e.g. .webm -> .mp3).
+                # If the tracked path is gone, resolve the real file by its stem.
+                if filename and not os.path.exists(filename):
+                    resolved = _resolve_final_file(filename)
+                    if resolved:
+                        filename = resolved
                 fsize = os.path.getsize(filename) if filename and os.path.exists(filename) else None
                 fname = os.path.basename(filename) if filename else None
                 ext = fname.rsplit('.', 1)[-1] if fname and '.' in fname else ''

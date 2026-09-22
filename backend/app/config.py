@@ -37,7 +37,8 @@ class Config:
     } if (_db_url and _db_url.startswith('postgresql')) else {}
 
     # ─── Sessions / cookies ───────────────────────────────────────────────
-    SESSION_COOKIE_SECURE = True
+    # Secure by default; set SESSION_COOKIE_SECURE=false for local HTTP dev.
+    SESSION_COOKIE_SECURE = _bool('SESSION_COOKIE_SECURE', True)
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
     PERMANENT_SESSION_LIFETIME = 60 * 60 * 24 * 30  # 30 days
