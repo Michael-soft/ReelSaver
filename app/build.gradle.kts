@@ -44,7 +44,7 @@ android {
     buildFeatures { buildConfig = true }
 
     defaultConfig {
-        applicationId = "com.junkfood.seal"
+        applicationId = "com.reelsaver.app"
         minSdk = 24
         targetSdk = 35
         versionCode = 200_000_150

@@ -16,6 +16,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.AudioFile
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.EnergySavingsLeaf
@@ -154,6 +155,15 @@ fun SettingsPage(onNavigateBack: () -> Unit, onNavigateTo: (String) -> Unit) {
                         onNavigateTo(Route.DONATE)
                     }
                 }
+            item {
+                SettingItem(
+                    title = "ReelSaver Account",
+                    description = "Sign in to sync history and settings",
+                    icon = Icons.Rounded.AccountCircle,
+                ) {
+                    onNavigateTo(Route.REELSAVER_ACCOUNT)
+                }
+            }
             item {
                 SettingItem(
                     title = stringResource(id = R.string.general_settings),

@@ -17,6 +17,8 @@ import androidx.core.content.getSystemService
 import com.google.android.material.color.DynamicColors
 import com.junkfood.seal.download.DownloaderV2
 import com.junkfood.seal.download.DownloaderV2Impl
+import com.junkfood.seal.network.ReelSaverAccountRepository
+import com.junkfood.seal.network.ReelSaverConfig
 import com.junkfood.seal.ui.page.download.HomePageViewModel
 import com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialogViewModel
 import com.junkfood.seal.ui.page.settings.directory.Directory
@@ -95,6 +97,9 @@ class App : Application() {
                     FileUtil.writeContentToFile(it, getCookiesFile())
                 }
                 UpdateUtil.deleteOutdatedApk()
+                if (ReelSaverConfig.isConfigured && ReelSaverConfig.syncEnabled) {
+                    ReelSaverAccountRepository.refresh()
+                }
             } catch (th: Throwable) {
                 withContext(Dispatchers.Main) { startCrashReportActivity(th) }
             }

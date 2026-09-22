@@ -64,6 +64,7 @@ import com.junkfood.seal.ui.page.settings.network.CookieProfilePage
 import com.junkfood.seal.ui.page.settings.network.CookiesViewModel
 import com.junkfood.seal.ui.page.settings.network.NetworkPreferences
 import com.junkfood.seal.ui.page.settings.network.WebViewPage
+import com.junkfood.seal.ui.page.settings.account.ReelSaverAccountPage
 import com.junkfood.seal.ui.page.settings.troubleshooting.TroubleShootingPage
 import com.junkfood.seal.ui.page.videolist.VideoListPage
 import kotlinx.coroutines.launch
@@ -261,6 +262,9 @@ fun NavGraphBuilder.settingsGraph(
         }
         animatedComposable(Route.TROUBLESHOOTING) {
             TroubleShootingPage(onNavigateTo = onNavigateTo, onBack = onNavigateBack)
+        }
+        animatedComposable(Route.REELSAVER_ACCOUNT) {
+            ReelSaverAccountPage(onBack = onNavigateBack)
         }
     }
 }
