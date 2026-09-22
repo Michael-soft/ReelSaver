@@ -211,7 +211,7 @@ export function WhatsAppStatusPage() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+    <div className="page page-lg">
 
       {/* Hidden folder input — works everywhere, including iframes */}
       <input
@@ -234,8 +234,8 @@ export function WhatsAppStatusPage() {
         }}>
           <Smartphone size={20} color="#25d366" />
         </div>
-        <div style={{ flex: 1 }}>
-          <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: 'var(--text)' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h1 style={{ margin: 0, fontSize: 'clamp(1.3rem, 3.5vw, 1.5rem)', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text)' }}>
             WhatsApp Status Saver
           </h1>
           <p style={{ margin: '0.15rem 0 0', fontSize: '0.875rem', color: 'var(--muted)' }}>

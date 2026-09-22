@@ -60,11 +60,11 @@ export function HistoryPage() {
   }
 
   return (
-    <div style={{ maxWidth: '820px', margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
+    <div className="page page-lg">
+      <div className="page-head">
         <div>
-          <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: '0 0 0.25rem', color: 'var(--text)' }}>History</h1>
-          <p style={{ color: 'var(--muted)', margin: 0, fontSize: '0.9375rem' }}>
+          <h1 className="page-title"><span className="gradient-text">History</span></h1>
+          <p className="page-subtitle">
             {total} total download{total !== 1 ? 's' : ''}
           </p>
         </div>
@@ -119,7 +119,7 @@ export function HistoryPage() {
       ) : (
         <>
           {/* Table header */}
-          <div style={{
+          <div className="history-head" style={{
             display: 'flex', alignItems: 'center', padding: '0 0.75rem 0.5rem',
             fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em',
           }}>
@@ -129,9 +129,9 @@ export function HistoryPage() {
                 : <Square size={15} />}
             </div>
             <div style={{ flex: 1, marginLeft: '0.5rem' }}>Title</div>
-            <div style={{ width: '70px', textAlign: 'right' }}>Type</div>
-            <div style={{ width: '90px', textAlign: 'right' }}>Size</div>
-            <div style={{ width: '90px', textAlign: 'right' }}>Date</div>
+            <div className="col-type" style={{ width: '70px', textAlign: 'right' }}>Type</div>
+            <div className="col-size" style={{ width: '90px', textAlign: 'right' }}>Size</div>
+            <div className="col-date" style={{ width: '90px', textAlign: 'right' }}>Date</div>
             <div style={{ width: '60px' }} />
           </div>
 
@@ -139,10 +139,11 @@ export function HistoryPage() {
             {items.map((item: DownloadRecord) => (
               <div
                 key={item.id}
-                className="card fade-in"
+                className="card history-row fade-in"
                 style={{
                   display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem',
-                  borderColor: selected.has(item.id) ? 'rgba(124, 58, 237, 0.3)' : 'var(--border)',
+                  borderColor: selected.has(item.id) ? 'rgba(var(--accent-rgb), 0.4)' : 'var(--border)',
+                  background: selected.has(item.id) ? 'rgba(var(--accent-rgb), 0.05)' : 'var(--surface)',
                   cursor: 'pointer', transition: 'all 0.15s',
                 }}
                 onClick={() => handleToggle(item.id)}
@@ -171,15 +172,15 @@ export function HistoryPage() {
                     {item.duration && <span style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>{formatDuration(item.duration)}</span>}
                   </div>
                 </div>
-                <div style={{ width: '70px', textAlign: 'right', flexShrink: 0 }}>
+                <div className="col-type" style={{ width: '70px', textAlign: 'right', flexShrink: 0 }}>
                   <span className={`badge ${item.media_type === 'audio' ? 'badge-audio' : 'badge-video'}`}>
                     {item.media_type}
                   </span>
                 </div>
-                <div style={{ width: '90px', textAlign: 'right', fontSize: '0.75rem', color: 'var(--muted)', flexShrink: 0 }}>
+                <div className="col-size" style={{ width: '90px', textAlign: 'right', fontSize: '0.75rem', color: 'var(--muted)', flexShrink: 0 }}>
                   {formatFileSize(item.filesize)}
                 </div>
-                <div style={{ width: '90px', textAlign: 'right', fontSize: '0.75rem', color: 'var(--muted)', flexShrink: 0 }}>
+                <div className="col-date" style={{ width: '90px', textAlign: 'right', fontSize: '0.75rem', color: 'var(--muted)', flexShrink: 0 }}>
                   {formatDate(item.created_at)}
                 </div>
                 <div style={{ width: '60px', display: 'flex', gap: '0.375rem', justifyContent: 'flex-end', flexShrink: 0 }}

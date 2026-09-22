@@ -7,14 +7,14 @@ interface PublicNavProps {
 
 export function PublicNav({ isAuthenticated = false }: PublicNavProps) {
   return (
-    <nav style={{
+    <nav className="glass" style={{
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
-      padding: '1.25rem 2rem',
-      borderBottom: '1px solid var(--border)',
-      background: 'rgba(15, 15, 20, 0.85)',
-      backdropFilter: 'blur(8px)',
+      padding: '0.9rem clamp(1rem, 4vw, 2rem)',
+      borderLeft: 'none',
+      borderRight: 'none',
+      borderTop: 'none',
       position: 'sticky',
       top: 0,
       zIndex: 50,
@@ -26,12 +26,7 @@ export function PublicNav({ isAuthenticated = false }: PublicNavProps) {
         textDecoration: 'none',
         color: 'var(--text)',
       }}>
-        <div style={{
-          width: '34px', height: '34px',
-          background: 'linear-gradient(135deg, #7c3aed, #a78bfa)',
-          borderRadius: '10px',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
+        <div className="brand-mark" style={{ width: '34px', height: '34px' }}>
           <Download size={18} color="white" />
         </div>
         <span style={{ fontWeight: 700, fontSize: '1.125rem' }}>ReelSaver</span>
@@ -39,38 +34,15 @@ export function PublicNav({ isAuthenticated = false }: PublicNavProps) {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
         {isAuthenticated ? (
-          <Link to="/app" style={{
-            padding: '0.55rem 1.1rem',
-            background: 'linear-gradient(135deg, #7c3aed, #a78bfa)',
-            color: 'white',
-            textDecoration: 'none',
-            fontSize: '0.9375rem',
-            fontWeight: 600,
-            borderRadius: '10px',
-          }}>
+          <Link to="/app" className="btn-primary" style={{ textDecoration: 'none' }}>
             Open dashboard
           </Link>
         ) : (
           <>
-            <Link to="/login" style={{
-              padding: '0.5rem 1rem',
-              color: 'var(--text)',
-              textDecoration: 'none',
-              fontSize: '0.9375rem',
-              fontWeight: 500,
-              borderRadius: '8px',
-            }}>
+            <Link to="/login" className="btn-secondary" style={{ textDecoration: 'none' }}>
               Sign in
             </Link>
-            <Link to="/login?mode=register" style={{
-              padding: '0.55rem 1.1rem',
-              background: 'linear-gradient(135deg, #7c3aed, #a78bfa)',
-              color: 'white',
-              textDecoration: 'none',
-              fontSize: '0.9375rem',
-              fontWeight: 600,
-              borderRadius: '10px',
-            }}>
+            <Link to="/login?mode=register" className="btn-primary" style={{ textDecoration: 'none' }}>
               Get started
             </Link>
           </>

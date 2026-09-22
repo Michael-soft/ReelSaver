@@ -43,12 +43,12 @@ export function CommandPage() {
   }
 
   return (
-    <div style={{ maxWidth: '720px', margin: '0 auto' }}>
+    <div className="page page-md">
       <div style={{ marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: '0 0 0.25rem', color: 'var(--text)' }}>
-          Custom Command
+        <h1 className="page-title">
+          <span className="gradient-text">Custom Command</span>
         </h1>
-        <p style={{ color: 'var(--muted)', margin: 0, fontSize: '0.9375rem' }}>
+        <p className="page-subtitle">
           Run custom yt-dlp flags. Save frequently-used commands as templates.
         </p>
       </div>
@@ -139,12 +139,12 @@ export function CommandPage() {
       {/* Save template form */}
       {showAdd && (
         <div className="card fade-in" style={{ marginBottom: '1rem' }}>
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end' }}>
-            <div style={{ flex: '0 0 160px' }}>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 140px', minWidth: 0 }}>
               <label style={{ fontSize: '0.8125rem', color: 'var(--muted)', display: 'block', marginBottom: '0.375rem' }}>Template name</label>
               <input className="input-base" placeholder="My template" value={newName} onChange={e => setNewName(e.target.value)} />
             </div>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: '2 1 200px', minWidth: 0 }}>
               <label style={{ fontSize: '0.8125rem', color: 'var(--muted)', display: 'block', marginBottom: '0.375rem' }}>Flags</label>
               <input className="input-base" placeholder="--extract-audio ..." value={newCmd} onChange={e => setNewCmd(e.target.value)} />
             </div>

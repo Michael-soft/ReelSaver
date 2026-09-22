@@ -95,20 +95,14 @@ export function WatermarkPage() {
   }
 
   return (
-    <div style={{ maxWidth: '780px', margin: '0 auto' }}>
+    <div className="page page-md">
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-        <div style={{
-          width: '40px', height: '40px',
-          background: 'rgba(124, 58, 237, 0.18)',
-          borderRadius: '10px',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: 'var(--accent-light)',
-        }}>
+        <div className="icon-badge">
           <Eraser size={20} />
         </div>
         <div>
-          <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: 'var(--text)' }}>
-            Remove Watermark
+          <h1 style={{ margin: 0, fontSize: 'clamp(1.3rem, 3.5vw, 1.5rem)', fontWeight: 800, letterSpacing: '-0.02em' }}>
+            <span className="gradient-text">Remove Watermark</span>
           </h1>
           <p style={{ margin: '0.15rem 0 0', color: 'var(--muted)', fontSize: '0.9rem' }}>
             Download videos without the platform's watermark.

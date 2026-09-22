@@ -16,10 +16,11 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 function SettingRow({ label, description, children }: { label: string; description?: string; children: React.ReactNode }) {
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1.5rem',
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      gap: '1rem', flexWrap: 'wrap',
       padding: '0.875rem 0', borderBottom: '1px solid var(--border)',
     }}>
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: '1 1 200px', minWidth: 0 }}>
         <div style={{ fontSize: '0.9375rem', fontWeight: 500, color: 'var(--text)' }}>{label}</div>
         {description && <div style={{ fontSize: '0.8125rem', color: 'var(--muted)', marginTop: '2px' }}>{description}</div>}
       </div>
@@ -132,11 +133,11 @@ export function SettingsPage({ user }: { user: User }) {
   }
 
   return (
-    <div style={{ maxWidth: '620px', margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
+    <div className="page page-sm">
+      <div className="page-head" style={{ alignItems: 'center' }}>
         <div>
-          <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: '0 0 0.25rem', color: 'var(--text)' }}>Settings</h1>
-          <p style={{ color: 'var(--muted)', margin: 0, fontSize: '0.9375rem' }}>Configure download preferences</p>
+          <h1 className="page-title"><span className="gradient-text">Settings</span></h1>
+          <p className="page-subtitle">Configure download preferences</p>
         </div>
         <button className="btn-primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
           {saveMutation.isPending ? (
@@ -201,7 +202,7 @@ export function SettingsPage({ user }: { user: User }) {
         <SettingRow label="Proxy" description="HTTP, HTTPS, or SOCKS5 proxy URL">
           <input
             className="input-base"
-            style={{ width: '220px' }}
+            style={{ width: 'min(220px, 45vw)' }}
             placeholder="http://proxy:port"
             value={form.proxy}
             onChange={e => set('proxy', e.target.value)}
@@ -210,7 +211,7 @@ export function SettingsPage({ user }: { user: User }) {
         <SettingRow label="Rate limit" description="Maximum download speed (e.g. 2M, 500K)">
           <input
             className="input-base"
-            style={{ width: '140px' }}
+            style={{ width: 'min(140px, 35vw)' }}
             placeholder="e.g. 2M"
             value={form.rateLimit}
             onChange={e => set('rateLimit', e.target.value)}

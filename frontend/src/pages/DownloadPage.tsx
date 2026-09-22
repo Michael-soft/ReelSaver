@@ -117,18 +117,18 @@ export function DownloadPage() {
   const stats = statsQuery.data
 
   return (
-    <div style={{ maxWidth: '720px', margin: '0 auto' }}>
+    <div className="page page-md">
       <div style={{ marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: '0 0 0.25rem', color: 'var(--text)' }}>
-          Download
+        <h1 className="page-title">
+          <span className="gradient-text">Download</span>
         </h1>
-        <p style={{ color: 'var(--muted)', margin: 0, fontSize: '0.9375rem' }}>
+        <p className="page-subtitle">
           Download video or audio from YouTube, Twitter, Instagram, and 1000+ more.
         </p>
       </div>
 
       {stats && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1.5rem' }}>
+        <div className="grid-auto-sm" style={{ marginBottom: '1.5rem' }}>
           {[
             { label: 'Total downloads', value: stats.total },
             { label: 'Completed', value: stats.completed },

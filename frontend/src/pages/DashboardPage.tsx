@@ -68,8 +68,8 @@ export function DashboardPage({ user }: DashboardPageProps) {
 
       {/* Greeting */}
       <div style={{ marginBottom: '1.75rem' }}>
-        <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: '0 0 0.25rem', color: 'var(--text)' }}>
-          {greeting(displayName)}
+        <h1 style={{ fontSize: '1.75rem', fontWeight: 800, margin: '0 0 0.35rem', letterSpacing: '-0.02em' }}>
+          <span className="gradient-text">{greeting(displayName)}</span>
         </h1>
         <p style={{ color: 'var(--muted)', margin: 0, fontSize: '0.9375rem' }}>
           Download media from YouTube, Instagram, TikTok and 1000+ platforms.
@@ -80,13 +80,13 @@ export function DashboardPage({ user }: DashboardPageProps) {
       <div className="card" style={{
         padding: '1.25rem',
         marginBottom: '1.5rem',
-        background: 'linear-gradient(135deg, rgba(124,58,237,0.08), rgba(167,139,250,0.06))',
-        border: '1px solid rgba(124,58,237,0.2)',
+        background: 'linear-gradient(135deg, rgba(var(--accent-rgb),0.10), rgba(var(--accent-rgb),0.03))',
+        border: '1px solid rgba(var(--accent-rgb),0.2)',
       }}>
-        <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.75rem' }}>
+        <div className="eyebrow" style={{ marginBottom: '0.75rem' }}>
           Quick Download
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+        <div className="toolbar" style={{ flexWrap: 'nowrap' }}>
           <input
             className="input-base"
             placeholder="Paste any video URL here…"
@@ -107,12 +107,7 @@ export function DashboardPage({ user }: DashboardPageProps) {
       </div>
 
       {/* Stats row */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: '0.75rem',
-        marginBottom: '1.5rem',
-      }}>
+      <div className="grid-auto-sm" style={{ marginBottom: '1.5rem' }}>
         {[
           {
             icon: TrendingUp, color: '#7c3aed',
@@ -130,10 +125,10 @@ export function DashboardPage({ user }: DashboardPageProps) {
             icon: Clock, color: '#f59e0b',
             label: 'Active now', value: stats?.downloading ?? 0,
           },
-        ].map(({ icon: Icon, color, label, value }) => (
-          <div key={label} className="card" style={{ padding: '1rem', textAlign: 'center' }}>
+        ].map(({ icon: Icon, color, label, value }, i) => (
+          <div key={label} className="card card-hover rise-in" style={{ padding: '1rem', textAlign: 'center', animationDelay: `${i * 60}ms` }}>
             <div style={{
-              width: '36px', height: '36px', borderRadius: '10px',
+              width: '38px', height: '38px', borderRadius: '11px',
               background: `${color}18`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               margin: '0 auto 0.5rem',
@@ -146,11 +141,11 @@ export function DashboardPage({ user }: DashboardPageProps) {
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+      <div className="grid-2" style={{ marginBottom: '1.5rem' }}>
 
         {/* Quick actions */}
         <div>
-          <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.75rem' }}>
+          <div className="eyebrow">
             Quick Actions
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
@@ -191,7 +186,7 @@ export function DashboardPage({ user }: DashboardPageProps) {
 
         {/* Supported platforms */}
         <div>
-          <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.75rem' }}>
+          <div className="eyebrow">
             Supported Platforms
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>

@@ -157,7 +157,7 @@ export function DownloadOptions({
                     padding: '0.5rem 0.875rem',
                     cursor: 'pointer',
                     borderBottom: '1px solid var(--border)',
-                    background: selectedFormatId === f.format_id ? 'rgba(124, 58, 237, 0.1)' : 'transparent',
+                    background: selectedFormatId === f.format_id ? 'rgba(var(--accent-rgb), 0.12)' : 'transparent',
                     transition: 'background 0.15s',
                     display: 'flex', gap: '0.75rem', alignItems: 'center',
                   }}

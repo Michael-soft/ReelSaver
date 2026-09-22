@@ -86,12 +86,12 @@ export function PlaylistPage() {
   }
 
   return (
-    <div style={{ maxWidth: '720px', margin: '0 auto' }}>
+    <div className="page page-md">
       <div style={{ marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: '0 0 0.25rem', color: 'var(--text)' }}>
-          Playlist
+        <h1 className="page-title">
+          <span className="gradient-text">Playlist</span>
         </h1>
-        <p style={{ color: 'var(--muted)', margin: 0, fontSize: '0.9375rem' }}>
+        <p className="page-subtitle">
           Fetch a playlist and select which videos to download.
         </p>
       </div>
@@ -187,13 +187,13 @@ export function PlaylistPage() {
                 style={{
                   display: 'flex', gap: '0.75rem', alignItems: 'center', padding: '0.75rem',
                   cursor: 'pointer',
-                  borderColor: selected.has(item.id) ? 'rgba(124, 58, 237, 0.4)' : 'var(--border)',
-                  background: selected.has(item.id) ? 'rgba(124, 58, 237, 0.05)' : 'var(--surface)',
+                  borderColor: selected.has(item.id) ? 'rgba(var(--accent-rgb), 0.4)' : 'var(--border)',
+                  background: selected.has(item.id) ? 'rgba(var(--accent-rgb), 0.05)' : 'var(--surface)',
                   transition: 'all 0.15s',
                 }}
                 onClick={() => item.id && handleToggle(item.id)}
               >
-                <div style={{ flexShrink: 0, color: selected.has(item.id) ? 'var(--accent)' : 'var(--border)' }}>
+                <div style={{ flexShrink: 0, color: selected.has(item.id) ? 'var(--accent)' : 'var(--border-strong)' }}>
                   {selected.has(item.id) ? <CheckSquare size={18} /> : <Square size={18} />}
                 </div>
                 {item.thumbnail && (

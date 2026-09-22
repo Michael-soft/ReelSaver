@@ -63,8 +63,8 @@ export function LoginPage({ onAuthenticated }: LoginPageProps) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'var(--bg)' }}>
-      <div style={{ padding: '1.25rem 2rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <div style={{ padding: '1.25rem clamp(1rem, 4vw, 2rem)' }}>
         <Link to="/" style={{
           display: 'inline-flex',
           alignItems: 'center',
@@ -80,28 +80,22 @@ export function LoginPage({ onAuthenticated }: LoginPageProps) {
       <div style={{
         flex: 1,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '1rem 2rem 3rem',
+        padding: '1rem clamp(1rem, 4vw, 2rem) 3rem',
       }}>
-        <div style={{
+        <div className="card rise-in" style={{
           display: 'flex', flexDirection: 'column', alignItems: 'stretch',
           gap: '1.25rem', maxWidth: '400px', width: '100%',
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: '14px',
-          padding: '2rem 1.75rem',
+          borderRadius: '18px',
+          padding: 'clamp(1.5rem, 5vw, 2rem) clamp(1.25rem, 4vw, 1.75rem)',
+          boxShadow: 'var(--shadow-lg)',
         }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{
-              width: '56px', height: '56px',
-              background: 'linear-gradient(135deg, #7c3aed, #a78bfa)',
-              borderRadius: '16px',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
+            <div className="brand-mark" style={{ width: '56px', height: '56px', borderRadius: '16px' }}>
               <Download size={28} color="white" />
             </div>
             <div style={{ textAlign: 'center' }}>
-              <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text)', margin: 0 }}>
-                {mode === 'login' ? 'Welcome back' : 'Create your account'}
+              <h1 style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}>
+                <span className="gradient-text">{mode === 'login' ? 'Welcome back' : 'Create your account'}</span>
               </h1>
               <p style={{ fontSize: '0.875rem', color: 'var(--muted)', marginTop: '0.25rem', marginBottom: 0 }}>
                 {mode === 'login' ? 'Sign in to continue to ReelSaver' : 'Start saving videos in seconds'}
@@ -199,23 +193,16 @@ export function LoginPage({ onAuthenticated }: LoginPageProps) {
 
             <button
               type="submit"
+              className="btn-primary"
               disabled={submitting}
               style={{
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                gap: '0.5rem',
-                padding: '0.7rem 1rem',
-                background: 'linear-gradient(135deg, #7c3aed, #a78bfa)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '10px',
-                fontWeight: 600, fontSize: '0.9375rem',
-                cursor: submitting ? 'wait' : 'pointer',
-                opacity: submitting ? 0.7 : 1,
-                transition: 'opacity 0.15s',
+                justifyContent: 'center',
+                width: '100%',
                 marginTop: '0.25rem',
+                cursor: submitting ? 'wait' : 'pointer',
               }}
             >
-              {submitting && <Loader2 size={16} className="spin" />}
+              {submitting && <Loader2 size={16} className="spinner" />}
               {mode === 'login' ? 'Sign in' : 'Create account'}
             </button>
           </form>
@@ -227,7 +214,7 @@ export function LoginPage({ onAuthenticated }: LoginPageProps) {
               onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError('') }}
               style={{
                 background: 'none', border: 'none', padding: 0,
-                color: '#a78bfa', cursor: 'pointer', fontWeight: 600,
+                color: 'var(--accent)', cursor: 'pointer', fontWeight: 600,
                 fontSize: '0.8125rem',
               }}
             >

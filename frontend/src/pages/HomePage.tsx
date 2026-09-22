@@ -43,12 +43,7 @@ export function HomePage({ isAuthenticated = false }: HomePageProps) {
             letterSpacing: '-0.02em',
           }}>
             Save videos and audio from{' '}
-            <span style={{
-              background: 'linear-gradient(135deg, #c4b5fd, #7c3aed)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}>
+            <span className="gradient-text">
               anywhere on the web
             </span>
           </h1>
@@ -200,16 +195,12 @@ export function HomePage({ isAuthenticated = false }: HomePageProps) {
 
 function FeatureCard({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
   return (
-    <div style={{
-      padding: '1.5rem',
-      background: 'var(--surface)',
-      border: '1px solid var(--border)',
-      borderRadius: '14px',
-    }}>
+    <div className="card card-hover" style={{ padding: '1.5rem', borderRadius: '16px' }}>
       <div style={{
-        width: '42px', height: '42px',
-        background: 'rgba(124, 58, 237, 0.15)',
-        borderRadius: '10px',
+        width: '44px', height: '44px',
+        background: 'linear-gradient(135deg, rgba(var(--accent-rgb), 0.22), rgba(var(--accent-rgb), 0.08))',
+        border: '1px solid rgba(var(--accent-rgb), 0.2)',
+        borderRadius: '12px',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         color: 'var(--accent-light)',
         marginBottom: '0.875rem',
